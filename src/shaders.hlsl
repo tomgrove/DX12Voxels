@@ -83,7 +83,7 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 	float3 light = saturate(dot(normalize( float3(1,1,-2) ), norms[pid])) * float3(1,1,1);
 
 	float3 blended = (1.0 - intensity) * float3(0.9, 0.9, 1) + intensity * color.xyz * light;
-	result.color =float4(blended, 1.0f);
+	result.color = float4(blended, 1.0f);
 
 	return result;
 }

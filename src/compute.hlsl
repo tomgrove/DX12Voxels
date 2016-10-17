@@ -63,14 +63,10 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 		}
 
 		uint z = index / (Depth*Height);
-		uint y = (index % 4096) / (Height);
+		uint y = (index %  (Depth*Height) ) / (Height);
 		uint x = (index % (Depth*Height)) % Width;
 
 		// bit of crude culling 
-		if ( (z * 0.1) < (-cullOffset) )
-		{
-			return;
-		}
 
 		if (z > 0 && z < (Depth-1))
 		{

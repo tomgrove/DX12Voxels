@@ -14,7 +14,7 @@
 
 const UINT D3D12ExecuteIndirect::CommandSizePerFrame = TriangleCount * sizeof(IndirectCommand);
 const UINT D3D12ExecuteIndirect::CommandBufferCounterOffset = AlignForUavCounter(D3D12ExecuteIndirect::CommandSizePerFrame);
-const float D3D12ExecuteIndirect::TriangleHalfWidth = 0.05f;
+const float D3D12ExecuteIndirect::VoxelHalfWidth = 0.05f;
 const float D3D12ExecuteIndirect::TriangleDepth = 1.0f;
 const float D3D12ExecuteIndirect::CullingCutoff = 0.5f;
 
@@ -22,6 +22,7 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
 	DXSample(width, height, name),
 	m_frameIndex(0),
 	m_bufIndex( 0 ),
+	m_RunCompute( true ),
 	m_viewport(),
 	m_scissorRect(),
 	m_cullingScissorRect(),
@@ -33,7 +34,7 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
 	ZeroMemory(m_fenceValues, sizeof(m_fenceValues));
 	m_constantBufferData.resize(TriangleCount);
 
-	m_csRootConstants.xOffset = TriangleHalfWidth;
+	m_csRootConstants.xOffset = VoxelHalfWidth;
 	m_csRootConstants.zOffset = TriangleDepth;
 	m_csRootConstants.cullOffset = CullingCutoff;
 	m_csRootConstants.commandCount = TriangleCount;
@@ -50,7 +51,7 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
 	m_cullingScissorRect.right = static_cast<LONG>(center + (center * CullingCutoff));
 	m_cullingScissorRect.bottom = static_cast<LONG>(height);
 
-	m_Position = XMFLOAT3(-0.1f * 32 , -0.1f * 32, -0.1f * 32);
+	m_Position = XMFLOAT3(-0.1f * Width/2 , -0.1f * Height/2, -0.1f * Depth/2);
 	m_Mine = false;
 }
 
@@ -357,7 +358,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 				{
 					UINT n = (Depth*Height) * z + Height * y + x;
 
-					auto offset = XMFLOAT4(x * TriangleHalfWidth * 2.0, y * TriangleHalfWidth * 2.0, z * TriangleHalfWidth * 2.0, 0);
+					auto offset = XMFLOAT4(x * VoxelHalfWidth * 2.0, y * VoxelHalfWidth * 2.0, z * VoxelHalfWidth * 2.0, 0);
 					m_constantBufferData[n].velocity = XMFLOAT4(0.01, 0, 0, 0);
 					m_constantBufferData[n].offset = offset;
 
@@ -365,7 +366,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 					auto v1=  (sin((float)z / Depth * 3.141f * 4.0f + 1.0f) ) ;
 
 					auto v3 = (v0*v1) / 2.0f + 0.5f;
-					if ( y < v3*63.0f )
+					if ( y < v3*(Height-1) )
 					{
 						m_constantBufferData[n].color = XMFLOAT4(GetRandomFloat(0.0f, 1.0f), GetRandomFloat(0.0f, 1.0f), GetRandomFloat(0.0f, 1.0f), 1.0f);
 					}
@@ -622,21 +623,20 @@ void D3D12ExecuteIndirect::OnUpdate()
 		{
 			XMFLOAT3 dist(m_constantBufferData[n].offset.x + m_Position.x,
 				m_constantBufferData[n].offset.y + m_Position.y,
-				m_constantBufferData[n].offset.z + (m_Position.z - 0.2));
+				m_constantBufferData[n].offset.z + (m_Position.z - 2*VoxelHalfWidth));
 
-			if ((dist.x*dist.x + dist.y*dist.y + dist.z*dist.z) < 0.025)
+			if ((dist.x*dist.x + dist.y*dist.y + dist.z*dist.z) < 0.5f ) //(VoxelHalfWidth*VoxelHalfWidth) )
 			{
 				m_constantBufferData[n].color = XMFLOAT4(0, 0, 0, 0);
 			}
 		}
 
-		for (int i = 0; i < FrameCount; i++)
-		{
-			UINT8* destination = m_pCbvDataBegin + (TriangleCount * i * sizeof(SceneConstantBuffer));
-			memcpy(destination, &m_constantBufferData[0], TriangleCount * sizeof(SceneConstantBuffer));
-		}
+		m_bufIndex = (m_bufIndex + 1) % FrameCount;
+		UINT8* destination = m_pCbvDataBegin + (TriangleCount * m_bufIndex * sizeof(SceneConstantBuffer));
+		memcpy(destination, &m_constantBufferData[0], TriangleCount * sizeof(SceneConstantBuffer));
+		m_RunCompute = true;
+		m_Mine = false;
 	}
-	//m_Mine = false;
 }
 
 // Render the scene.
@@ -646,9 +646,9 @@ void D3D12ExecuteIndirect::OnRender()
 	PopulateCommandLists();
 
 	// Execute the compute work.
-	//if (m_enableCulling)
+	
 	{
-		PIXBeginEvent(m_commandQueue.Get(), 0, L"Cull invisible triangles");
+		PIXBeginEvent(m_commandQueue.Get(), 0, L"Cull hidden voxels");
 
 		ID3D12CommandList* ppCommandLists[] = { m_computeCommandList.Get() };
 		m_computeCommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
@@ -730,9 +730,9 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 	ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get()));
 
 	// Record the compute commands that will cull triangles and prevent them from being processed by the vertex shader.
-	//if (m_Mine)
+	if ( m_RunCompute )
 	{
-		UINT frameDescriptorOffset = m_frameIndex * CbvSrvUavDescriptorCountPerFrame;
+		UINT frameDescriptorOffset = m_bufIndex * CbvSrvUavDescriptorCountPerFrame;
 		D3D12_GPU_DESCRIPTOR_HANDLE cbvSrvUavHandle = m_cbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
 
 		m_computeCommandList->SetComputeRootSignature(m_computeRootSignature.Get());
@@ -748,15 +748,14 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 		m_computeCommandList->SetComputeRoot32BitConstants(RootConstants, 4, reinterpret_cast<void*>(&m_csRootConstants), 0);
 
 		// Reset the UAV counter for this frame.
-		m_computeCommandList->CopyBufferRegion(m_processedCommandBuffers[m_frameIndex].Get(), CommandBufferCounterOffset, m_processedCommandBufferCounterReset.Get(), 0, sizeof(UINT));
+		m_computeCommandList->CopyBufferRegion(m_processedCommandBuffers[m_bufIndex].Get(), CommandBufferCounterOffset, m_processedCommandBufferCounterReset.Get(), 0, sizeof(UINT));
 
-		D3D12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_processedCommandBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		D3D12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_processedCommandBuffers[m_bufIndex].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		m_computeCommandList->ResourceBarrier(1, &barrier);
 
 		m_computeCommandList->Dispatch(static_cast<UINT>(ceil(TriangleCount / float(ComputeThreadBlockSize))), 1, 1);
 	}
 
-	m_Mine = false;
 
 	ThrowIfFailed(m_computeCommandList->Close());
 
@@ -767,25 +766,35 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 
 		ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
 		m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-		m_commandList->SetGraphicsRoot32BitConstants(View,ViewInUInt32s, reinterpret_cast<void*>(&m_View),0);
+		m_commandList->SetGraphicsRoot32BitConstants(View, ViewInUInt32s, reinterpret_cast<void*>(&m_View), 0);
 
 		m_commandList->RSSetViewports(1, &m_viewport);
 		m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
 		// Indicate that the command buffer will be used for indirect drawing
 		// and that the back buffer will be used as a render target.
-		D3D12_RESOURCE_BARRIER barriers[2] = {
-			CD3DX12_RESOURCE_BARRIER::Transition(
-				true ? m_processedCommandBuffers[m_frameIndex].Get() : m_commandBuffer.Get(),
-				true ? D3D12_RESOURCE_STATE_UNORDERED_ACCESS : D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-				D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT),
-			CD3DX12_RESOURCE_BARRIER::Transition(
-				m_renderTargets[m_frameIndex].Get(),
-				D3D12_RESOURCE_STATE_PRESENT,
-				D3D12_RESOURCE_STATE_RENDER_TARGET)
-		};
 
-		m_commandList->ResourceBarrier(_countof(barriers), barriers);
+
+		D3D12_RESOURCE_BARRIER barriers[2];
+		UINT barrierIndex = 0;
+		if (m_RunCompute)
+		{
+			barriers[barrierIndex] = CD3DX12_RESOURCE_BARRIER::Transition(
+				m_processedCommandBuffers[m_bufIndex].Get(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+				D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+			barrierIndex++;
+		}
+
+
+		barriers[barrierIndex] = CD3DX12_RESOURCE_BARRIER::Transition(
+			m_renderTargets[m_frameIndex].Get(),
+			D3D12_RESOURCE_STATE_PRESENT,
+			D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+		barrierIndex++;
+
+		m_commandList->ResourceBarrier(barrierIndex, barriers);
 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
 		CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
@@ -798,7 +807,6 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 
 		m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
-		if (true)
 		{
 			PIXBeginEvent(m_commandList.Get(), 0, L"Draw visible triangles");
 
@@ -806,34 +814,31 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 			m_commandList->ExecuteIndirect(
 				m_commandSignature.Get(),
 				TriangleCount,
-				m_processedCommandBuffers[m_frameIndex].Get(),
+				m_processedCommandBuffers[m_bufIndex].Get(),
 				0,
-				m_processedCommandBuffers[m_frameIndex].Get(),
+				m_processedCommandBuffers[m_bufIndex].Get(),
 				CommandBufferCounterOffset);
 		}
-		else
-		{
-			PIXBeginEvent(m_commandList.Get(), 0, L"Draw all triangles");
 
-			// Draw all of the triangles.
-			m_commandList->ExecuteIndirect(
-				m_commandSignature.Get(),
-				TriangleCount,
-				m_commandBuffer.Get(),
-				CommandSizePerFrame * m_frameIndex,
-				nullptr,
-				0);
-		}
 		PIXEndEvent(m_commandList.Get());
 
 		// Indicate that the command buffer may be used by the compute shader
 		// and that the back buffer will now be used to present.
-		barriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
-		barriers[0].Transition.StateAfter = true ? D3D12_RESOURCE_STATE_COPY_DEST : D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-		barriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 
-		m_commandList->ResourceBarrier(_countof(barriers), barriers);
+		barrierIndex = 0;
+
+		if (m_RunCompute)
+		{
+			barriers[barrierIndex].Transition.StateBefore = D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
+			barriers[barrierIndex].Transition.StateAfter = true ? D3D12_RESOURCE_STATE_COPY_DEST : D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+			barrierIndex++;
+		}
+
+		barriers[barrierIndex].Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		barriers[barrierIndex].Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		barrierIndex++;
+
+		m_commandList->ResourceBarrier( barrierIndex, barriers);
 
 		ThrowIfFailed(m_commandList->Close());
 	}
@@ -872,5 +877,6 @@ void D3D12ExecuteIndirect::MoveToNextFrame()
 
 	// Set the fence value for the next frame.
 	m_fenceValues[m_frameIndex] = currentFenceValue + 1;
-	m_Mine = false;
+	
+	m_RunCompute = false;
 }
