@@ -54,7 +54,9 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 	uint index = (groupId.x * threadBlockSize) + groupIndex;
 
 	// Don't attempt to access commands that don't exist if more threads are allocated
-	// than commands.
+	// than commands
+
+
 	if (index < commandCount)
 	{
 		if (cbv[index].color.w == 0)

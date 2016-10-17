@@ -38,6 +38,8 @@ private:
 	static const UINT Depth		= 64;
 	static const UINT Height	= 64;
 	static const UINT Width		= 64;
+	static const UINT TileX = 4;
+	static const UINT TileZ = 4;
 	static const UINT TriangleCount = Depth*Height*Width;
 	static const UINT TriangleResourceCount = TriangleCount * FrameCount;
 	static const UINT CommandSizePerFrame;				// The size of the indirect commands to draw all of the triangles in a single frame.
@@ -87,6 +89,13 @@ private:
 	{
 		D3D12_GPU_VIRTUAL_ADDRESS cbv;
 		D3D12_DRAW_ARGUMENTS drawArguments;
+	};
+
+	enum VoxOp
+	{
+		None,
+		Mine,
+		Place
 	};
 
 	// Graphics root signature parameter offsets.
@@ -147,8 +156,8 @@ private:
 
 
 	XMFLOAT3 m_Position;
-	bool	 m_Mine;
 	bool     m_RunCompute;
+	VoxOp	 m_VoxOp;
 
 	// Synchronization objects.
 	ComPtr<ID3D12Fence> m_fence;

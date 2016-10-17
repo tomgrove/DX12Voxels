@@ -52,7 +52,7 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
 	m_cullingScissorRect.bottom = static_cast<LONG>(height);
 
 	m_Position = XMFLOAT3(-0.1f * Width/2 , -0.1f * Height/2, -0.1f * Depth/2);
-	m_Mine = false;
+	m_VoxOp = None;
 }
 
 void D3D12ExecuteIndirect::OnInit()
@@ -358,15 +358,15 @@ void D3D12ExecuteIndirect::LoadAssets()
 				{
 					UINT n = (Depth*Height) * z + Height * y + x;
 
-					auto offset = XMFLOAT4(x * VoxelHalfWidth * 2.0, y * VoxelHalfWidth * 2.0, z * VoxelHalfWidth * 2.0, 0);
-					m_constantBufferData[n].velocity = XMFLOAT4(0.01, 0, 0, 0);
+					auto offset = XMFLOAT4(x * VoxelHalfWidth * 2.0f, y * VoxelHalfWidth * 2.0f, z * VoxelHalfWidth * 2.0f, 0);
+					m_constantBufferData[n].velocity = XMFLOAT4(0.01f, 0, 0, 0);
 					m_constantBufferData[n].offset = offset;
 
 					auto v0 = (cos((float)x / Width * 3.141f * 4.0f + 1.0f) ) ;
 					auto v1=  (sin((float)z / Depth * 3.141f * 4.0f + 1.0f) ) ;
 
 					auto v3 = (v0*v1) / 2.0f + 0.5f;
-					if ( y < v3*(Height-1) )
+					if ( y < v3*(Height/4-1) )
 					{
 						m_constantBufferData[n].color = XMFLOAT4(GetRandomFloat(0.0f, 1.0f), GetRandomFloat(0.0f, 1.0f), GetRandomFloat(0.0f, 1.0f), 1.0f);
 					}
@@ -617,7 +617,7 @@ void D3D12ExecuteIndirect::OnUpdate()
 	auto ViewProj = XMMatrixMultiply(ViewPos, Proj);
 	XMStoreFloat4x4(&m_View.projection, XMMatrixTranspose(ViewProj));
 
-	if (m_Mine)
+	if (m_VoxOp != None)
 	{
 		for (UINT n = 0; n < TriangleCount; n++)
 		{
@@ -627,7 +627,14 @@ void D3D12ExecuteIndirect::OnUpdate()
 
 			if ((dist.x*dist.x + dist.y*dist.y + dist.z*dist.z) < 0.5f ) //(VoxelHalfWidth*VoxelHalfWidth) )
 			{
-				m_constantBufferData[n].color = XMFLOAT4(0, 0, 0, 0);
+				if (m_VoxOp == Mine)
+				{
+					m_constantBufferData[n].color = XMFLOAT4(0, 0, 0, 0);
+				}
+				else
+				{
+					m_constantBufferData[n].color = XMFLOAT4( GetRandomFloat(0.1,0.5), 0, 0, 1.0);
+				}
 			}
 		}
 
@@ -635,7 +642,7 @@ void D3D12ExecuteIndirect::OnUpdate()
 		UINT8* destination = m_pCbvDataBegin + (TriangleCount * m_bufIndex * sizeof(SceneConstantBuffer));
 		memcpy(destination, &m_constantBufferData[0], TriangleCount * sizeof(SceneConstantBuffer));
 		m_RunCompute = true;
-		m_Mine = false;
+		m_VoxOp = None;
 	}
 }
 
@@ -647,6 +654,7 @@ void D3D12ExecuteIndirect::OnRender()
 
 	// Execute the compute work.
 	
+	if( m_RunCompute )
 	{
 		PIXBeginEvent(m_commandQueue.Get(), 0, L"Cull hidden voxels");
 
@@ -689,25 +697,28 @@ void D3D12ExecuteIndirect::OnKeyDown(UINT8 key)
 	switch (key)
 	{
 		case VK_UP:
-			m_Position.z -= 0.02;
+			m_Position.z -= 0.02f;
 			break;
 		case VK_DOWN:
-			m_Position.z += 0.02;
+			m_Position.z += 0.02f;
 			break;
 		case VK_LEFT:
-			m_Position.x += 0.02;
+			m_Position.x += 0.02f;
 			break;
 		case VK_RIGHT:
-			m_Position.x -= 0.02;
+			m_Position.x -= 0.02f;
 			break;
-		case VK_INSERT:
-			m_Position.y -= 0.02;
+		case 'W':
+			m_Position.y -= 0.02f;
 			break;
-		case VK_DELETE:
-			m_Position.y += 0.02;
+		case 'S':
+			m_Position.y += 0.02f;
 			break;
 		case VK_SPACE:
-			m_Mine = true;
+			m_VoxOp = Mine;
+			break;
+		case VK_INSERT:
+			m_VoxOp = Place;
 			break;
 
 
@@ -786,7 +797,6 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 			barrierIndex++;
 		}
 
-
 		barriers[barrierIndex] = CD3DX12_RESOURCE_BARRIER::Transition(
 			m_renderTargets[m_frameIndex].Get(),
 			D3D12_RESOURCE_STATE_PRESENT,
@@ -808,16 +818,30 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 		m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
 		{
-			PIXBeginEvent(m_commandList.Get(), 0, L"Draw visible triangles");
+			PIXBeginEvent(m_commandList.Get(), 0, L"Draw visible voxels");
+			for (int i = 0; i < TileX; i++) {
 
-			// Draw the triangles that have not been culled.
-			m_commandList->ExecuteIndirect(
-				m_commandSignature.Get(),
-				TriangleCount,
-				m_processedCommandBuffers[m_bufIndex].Get(),
-				0,
-				m_processedCommandBuffers[m_bufIndex].Get(),
-				CommandBufferCounterOffset);
+				for (int j = 0; j < TileZ; j++) {
+
+					m_View.colour = XMFLOAT4( i*VoxelHalfWidth*2.0*Width, 0, j*VoxelHalfWidth*2.0*Depth, 0);
+					m_commandList->SetGraphicsRoot32BitConstants(View, ViewInUInt32s, reinterpret_cast<void*>(&m_View), 0);
+					
+					// Hmmm ... so what does ExecuteIndirect use this TriangleCount for ? I assume it has to allocate / reserve
+					// some buffer internally; making it smaller improves perf so might there be some "ideal" vendor specific
+					// command length?
+					// http://developer.download.nvidia.com/gameworks/events/GDC2016/AdvancedRenderingwithDirectX11andDirectX12.pdf
+					// strongly recommend Making MaxCommandCount close to actual count, which implies there is some overhead prop
+					// to max command count on nvidia.
+
+					m_commandList->ExecuteIndirect(
+						m_commandSignature.Get(),
+						TriangleCount/8, // er ... make it a bit smaller? and crashier?
+						m_processedCommandBuffers[m_bufIndex].Get(),
+						0,
+						m_processedCommandBuffers[m_bufIndex].Get(),
+						CommandBufferCounterOffset);
+				}
+			}
 		}
 
 		PIXEndEvent(m_commandList.Get());

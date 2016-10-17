@@ -19,7 +19,7 @@ cbuffer SceneConstantBuffer : register(b0)
 cbuffer ViewConstantBuffer : register(b1)
 {
 	float4x4 projection;
-	float4 thiscolour;
+	float4 tileoffset;
 };
 
 struct PSInput
@@ -77,9 +77,9 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 
 };
 
-	result.position = mul( verts[vid + pid*4]  + offset, projection);
+	result.position = mul( verts[vid + pid*4]  + offset + tileoffset, projection);
 
-	float intensity = saturate((6.0f - result.position.z) / 2.0f);
+	float intensity = saturate((16.0f - result.position.z) / 2.0f);
 	float3 light = saturate(dot(normalize( float3(1,1,-2) ), norms[pid])) * float3(1,1,1);
 
 	float3 blended = (1.0 - intensity) * float3(0.9, 0.9, 1) + intensity * color.xyz * light;
