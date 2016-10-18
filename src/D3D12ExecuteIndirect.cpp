@@ -213,8 +213,12 @@ void D3D12ExecuteIndirect::LoadAssets()
 		CD3DX12_DESCRIPTOR_RANGE1 texranges[1];
 		texranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
 		rootParameters[Texture].InitAsDescriptorTable(1, &texranges[0], D3D12_SHADER_VISIBILITY_PIXEL);
-		rootParameters[Cbv].InitAsConstantBufferView(0, 0, D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC, D3D12_SHADER_VISIBILITY_VERTEX);
-		rootParameters[View].InitAsConstants(ViewInUInt32s, 1); // 1, 0, D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC, D3D12_SHADER_VISIBILITY_VERTEX);
+
+		CD3DX12_DESCRIPTOR_RANGE1 voxelranges[1];
+		voxelranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+		rootParameters[Cbv].InitAsDescriptorTable(1, &voxelranges[0], D3D12_SHADER_VISIBILITY_VERTEX); //D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC, D3D12_SHADER_VISIBILITY_VERTEX);
+		
+		rootParameters[View].InitAsConstants(ViewInUInt32s, 1); 
 
 		D3D12_STATIC_SAMPLER_DESC sampler = {};
 		sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
@@ -403,25 +407,11 @@ void D3D12ExecuteIndirect::LoadAssets()
 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), 0, m_cbvSrvUavDescriptorSize);
 
-		m_device->CreateShaderResourceView(m_texture.Get(), &srvDesc, cbvSrvHandle); // cbvSrvHandlem_srvHeap->GetCPUDescriptorHandleForHeapStart());
-
-																					 // Close the command list and execute it to begin the initial GPU setup.
-		//ThrowIfFailed(m_commandList->Close());
-		//ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-		//m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+		m_device->CreateShaderResourceView(m_texture.Get(), &srvDesc, cbvSrvHandle); 
 	}
+
 	// Create the constant buffers.
 	{
-	/*	ThrowIfFailed(m_device->CreateCommittedResource(
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Buffer(sizeof(ViewConstantBuffer)* FrameCount ),
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(&m_viewConstantBuffer)));
-
-		NAME_D3D12_OBJECT(m_viewConstantBuffer);
-		*/
 
 		const UINT constantBufferDataSize = TriangleResourceCount * sizeof(SceneConstantBuffer);
 
@@ -435,8 +425,6 @@ void D3D12ExecuteIndirect::LoadAssets()
 
 		NAME_D3D12_OBJECT(m_constantBuffer);
 
-		// Initialize the constant buffers for each of the triangles.
-		//for (UINT n = 0; n < TriangleCount; n++)
 		for (int z = 0; z < Depth; z++)
 		{
 			for (int y = 0; y < Height; y++)
@@ -446,7 +434,6 @@ void D3D12ExecuteIndirect::LoadAssets()
 					UINT n = (Depth*Height) * z + Height * y + x;
 
 					auto offset = XMFLOAT4(x * VoxelHalfWidth * 2.0f, y * VoxelHalfWidth * 2.0f, z * VoxelHalfWidth * 2.0f, 0);
-					m_constantBufferData[n].velocity = XMFLOAT4(0.01f, 0, 0, 0);
 					m_constantBufferData[n].offset = offset;
 
 					auto v0 = (cos((float)x / Width * 3.141f * 4.0f + 1.0f) ) ;
@@ -474,43 +461,11 @@ void D3D12ExecuteIndirect::LoadAssets()
 			}
 		}
 
-		
-		{
-		// Map the constant buffers. We don't unmap this until the app closes.
-		// Keeping things mapped for the lifetime of the resource is okay.
-		/*
-			CD3DX12_RANGE readRange(0, 0);		// We do not intend to read from this resource on the CPU.
-			ThrowIfFailed(m_viewConstantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&m_pViewData)));
-
-			// Create shader resource views (SRV) of the constant buffers for the
-			// compute shader to read from.
-			D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-			srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-			srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-			srvDesc.Buffer.NumElements = 1;
-			srvDesc.Buffer.StructureByteStride = sizeof(ViewConstantBuffer);
-			srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-
-
-			CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), ViewOffset, m_cbvSrvUavDescriptorSize);
-			for (UINT frame = 0; frame < FrameCount; frame++)
-			{
-				srvDesc.Buffer.FirstElement = frame;
-				m_device->CreateShaderResourceView(m_viewConstantBuffer.Get(), &srvDesc, cbvSrvHandle);
-				cbvSrvHandle.Offset(CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize);
-			}
-			*/
-		}
-
 		{
 			CD3DX12_RANGE readRange(0, 0);		// We do not intend to read from this resource on the CPU.
 			ThrowIfFailed(m_constantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&m_pCbvDataBegin)));
-			for (int i = 0; i < FrameCount; i++)
-			{
-				const size_t size = TriangleCount * sizeof(SceneConstantBuffer);
-				memcpy(m_pCbvDataBegin + size * i, &m_constantBufferData[0], size);
-			}
+			const size_t size = TriangleCount * sizeof(SceneConstantBuffer);
+			memcpy(m_pCbvDataBegin, &m_constantBufferData[0], size);
 		}
 
 		// Create shader resource views (SRV) of the constant buffers for the
@@ -522,11 +477,12 @@ void D3D12ExecuteIndirect::LoadAssets()
 		srvDesc.Buffer.NumElements = TriangleCount;
 		srvDesc.Buffer.StructureByteStride = sizeof(SceneConstantBuffer);
 		srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+		srvDesc.Buffer.FirstElement = 0;
 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CbvSrvOffset + NumTexture, m_cbvSrvUavDescriptorSize);
-		for (UINT frame = 0; frame < FrameCount; frame++)
+		for (int i = 0; i < FrameCount; i++)
 		{
-			srvDesc.Buffer.FirstElement = frame * TriangleCount;
+			srvDesc.Buffer.FirstElement = i * TriangleCount;
 			m_device->CreateShaderResourceView(m_constantBuffer.Get(), &srvDesc, cbvSrvHandle);
 			cbvSrvHandle.Offset(CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize);
 		}
@@ -536,8 +492,11 @@ void D3D12ExecuteIndirect::LoadAssets()
 	{
 		// Each command consists of a CBV update and a DrawInstanced call.
 		D3D12_INDIRECT_ARGUMENT_DESC argumentDescs[2] = {};
-		argumentDescs[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT_BUFFER_VIEW;
-		argumentDescs[0].ConstantBufferView.RootParameterIndex = Cbv;
+		argumentDescs[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT;
+		argumentDescs[0].Constant.DestOffsetIn32BitValues = offsetof(ViewConstantBuffer,index) / sizeof(UINT);
+		argumentDescs[0].Constant.RootParameterIndex = View;
+		argumentDescs[0].Constant.Num32BitValuesToSet = 1;
+
 		argumentDescs[1].Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW;
 
 		D3D12_COMMAND_SIGNATURE_DESC commandSignatureDesc = {};
@@ -581,7 +540,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 		{
 			for (UINT n = 0; n < TriangleCount; n++)
 			{
-				commands[commandIndex].cbv = gpuAddress;
+				commands[commandIndex].index = n;
 				commands[commandIndex].drawArguments.VertexCountPerInstance = 4;
 				commands[commandIndex].drawArguments.InstanceCount = 6;
 				commands[commandIndex].drawArguments.StartVertexLocation = 0;
@@ -734,7 +693,7 @@ void D3D12ExecuteIndirect::OnUpdate()
 			}
 		}
 
-		m_bufIndex = (m_bufIndex + 1) % FrameCount;
+		m_bufIndex =  (m_bufIndex + 1) % FrameCount;
 		UINT8* destination = m_pCbvDataBegin + (TriangleCount * m_bufIndex * sizeof(SceneConstantBuffer));
 		memcpy(destination, &m_constantBufferData[0], TriangleCount * sizeof(SceneConstantBuffer));
 		m_RunCompute = true;
@@ -876,6 +835,12 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 		m_commandList->SetGraphicsRoot32BitConstants(View, ViewInUInt32s, reinterpret_cast<void*>(&m_View), 0);
 		m_commandList->SetGraphicsRootDescriptorTable(Texture, m_cbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart() );
 
+		UINT frameDescriptorOffset = m_bufIndex * CbvSrvUavDescriptorCountPerFrame;
+		D3D12_GPU_DESCRIPTOR_HANDLE cbvSrvUavHandle = m_cbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
+		CD3DX12_GPU_DESCRIPTOR_HANDLE cbvdt(cbvSrvUavHandle, CbvSrvOffset + NumTexture + frameDescriptorOffset, m_cbvSrvUavDescriptorSize);
+
+		m_commandList->SetGraphicsRootDescriptorTable(Cbv,  cbvdt );
+
 		m_commandList->RSSetViewports(1, &m_viewport);
 		m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
@@ -920,7 +885,7 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 
 				for (int j = 0; j < TileZ; j++) {
 
-					m_View.colour = XMFLOAT4( i*VoxelHalfWidth*2.0*Width, 0, j*VoxelHalfWidth*2.0*Depth, 0);
+					m_View.tileoffset = XMFLOAT4( i*VoxelHalfWidth*2.0f*Width, 0, j*VoxelHalfWidth*2.0f*Depth, 0);
 					m_commandList->SetGraphicsRoot32BitConstants(View, ViewInUInt32s, reinterpret_cast<void*>(&m_View), 0);
 					
 					// Hmmm ... so what does ExecuteIndirect use this TriangleCount for ? I assume it has to allocate / reserve

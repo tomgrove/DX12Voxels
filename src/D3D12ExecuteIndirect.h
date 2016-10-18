@@ -50,16 +50,11 @@ private:
 	static const float CullingCutoff;					// The +/- x offset of the clipping planes in homogenous space [-1,1].
 	static const UINT NumTexture = 1;
 
-	// Vertex definition.
-	struct Vertex
-	{
-		XMFLOAT3 position;
-	};
-
 	struct ViewConstantBuffer
 	{
 		XMFLOAT4X4 projection;
-		XMFLOAT4   colour;
+		XMFLOAT4   tileoffset;
+		UINT	   index;
 	};
 
 	static const UINT32 ViewInUInt32s = sizeof(ViewConstantBuffer) / sizeof(UINT32);
@@ -67,13 +62,8 @@ private:
 	// Constant buffer definition.
 	struct SceneConstantBuffer
 	{
-		XMFLOAT4 velocity;
 		XMFLOAT4 offset;
 		XMFLOAT4 color;
-
-		// Constant buffers are 256-byte aligned. Add padding in the struct to allow multiple buffers
-		// to be array-indexed.
-		float padding[52];
 	};
 
 	// Root constants for the compute shader.
@@ -86,11 +76,13 @@ private:
 	};
 
 	// Data structure to match the command signature used for ExecuteIndirect.
+#pragma pack(push, 4)
 	struct IndirectCommand
 	{
-		D3D12_GPU_VIRTUAL_ADDRESS cbv;
-		D3D12_DRAW_ARGUMENTS drawArguments;
+		UINT					  index;
+		D3D12_DRAW_ARGUMENTS	  drawArguments;
 	};
+#pragma pack(pop)
 
 	enum VoxOp
 	{

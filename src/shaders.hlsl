@@ -9,9 +9,9 @@
 //
 //*********************************************************
 
-cbuffer SceneConstantBuffer : register(b0)
+
+struct SceneConstantBuffer
 {
-	float4 velocity;
 	float4 offset;
 	float4 color;
 };
@@ -19,11 +19,15 @@ cbuffer SceneConstantBuffer : register(b0)
 cbuffer ViewConstantBuffer : register(b1)
 {
 	float4x4 projection;
-	float4 tileoffset;
+	float4	 tileoffset;
+	uint     index;
 };
 
 Texture2D g_texture : register(t0);
 SamplerState g_sampler : register(s0);
+
+
+StructuredBuffer<SceneConstantBuffer> cbv				: register(t0);	// SRV: Wrapped constant buffers
 
 struct PSInput
 {
@@ -82,14 +86,14 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 
 };
 
-	result.position = mul( verts[vid + pid*4]  + offset + tileoffset, projection);
+	result.position = mul( verts[vid + pid*4]  + cbv[index].offset + tileoffset, projection);
 
 	float intensity = saturate((16.0f - result.position.z) / 2.0f);
 	float3 light = saturate(dot(normalize( float3(1,1,-2) ), norms[pid])) * float3(1,1,1);
 
 	float3 blended = (1.0 - intensity) * float3(0.9, 0.9, 1) + intensity * light;
 	result.color = float4(blended, 1.0f);
-	result.uv.xy = uvs[vid] / 17.0f + color.xy;
+	result.uv.xy = uvs[vid] / 17.0f + cbv[index].color.xy;
 
 	return result;
 }

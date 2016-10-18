@@ -17,15 +17,13 @@
 
 struct SceneConstantBuffer
 {
-	float4 velocity;
 	float4 offset;
 	float4 color;
-	float4 padding[13];
 };
 
 struct IndirectCommand
 {
-	uint2 cbvAddress;
+	uint  index;
 	uint4 drawArguments;
 };
 
