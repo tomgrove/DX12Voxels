@@ -11,6 +11,8 @@
 
 #include "stdafx.h"
 #include "D3D12ExecuteIndirect.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 const UINT D3D12ExecuteIndirect::CommandSizePerFrame = TriangleCount * sizeof(IndirectCommand);
 const UINT D3D12ExecuteIndirect::CommandBufferCounterOffset = AlignForUavCounter(D3D12ExecuteIndirect::CommandSizePerFrame);
@@ -161,7 +163,7 @@ void D3D12ExecuteIndirect::LoadPipeline()
 		// Describe and create a constant buffer view (CBV), Shader resource
 		// view (SRV), and unordered access view (UAV) descriptor heap.
 		D3D12_DESCRIPTOR_HEAP_DESC cbvSrvUavHeapDesc = {};
-		cbvSrvUavHeapDesc.NumDescriptors = CbvSrvUavDescriptorCountPerFrame * FrameCount;
+		cbvSrvUavHeapDesc.NumDescriptors = CbvSrvUavDescriptorCountPerFrame * FrameCount + NumTexture;
 		cbvSrvUavHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		cbvSrvUavHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		ThrowIfFailed(m_device->CreateDescriptorHeap(&cbvSrvUavHeapDesc, IID_PPV_ARGS(&m_cbvSrvUavHeap)));
@@ -205,12 +207,32 @@ void D3D12ExecuteIndirect::LoadAssets()
 			featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
 		}
 
+		
 		CD3DX12_ROOT_PARAMETER1 rootParameters[GraphicsRootParametersCount];
+
+		CD3DX12_DESCRIPTOR_RANGE1 texranges[1];
+		texranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+		rootParameters[Texture].InitAsDescriptorTable(1, &texranges[0], D3D12_SHADER_VISIBILITY_PIXEL);
 		rootParameters[Cbv].InitAsConstantBufferView(0, 0, D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC, D3D12_SHADER_VISIBILITY_VERTEX);
-		rootParameters[View].InitAsConstants( ViewInUInt32s, 1); // 1, 0, D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC, D3D12_SHADER_VISIBILITY_VERTEX);
+		rootParameters[View].InitAsConstants(ViewInUInt32s, 1); // 1, 0, D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC, D3D12_SHADER_VISIBILITY_VERTEX);
+
+		D3D12_STATIC_SAMPLER_DESC sampler = {};
+		sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+		sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		sampler.MipLODBias = 0;
+		sampler.MaxAnisotropy = 0;
+		sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		sampler.MinLOD = 0.0f;
+		sampler.MaxLOD = D3D12_FLOAT32_MAX;
+		sampler.ShaderRegister = 0;
+		sampler.RegisterSpace = 0;
+		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
 		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
-		rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+		rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, 1, &sampler, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 		ComPtr<ID3DBlob> signature;
 		ComPtr<ID3DBlob> error;
@@ -322,7 +344,72 @@ void D3D12ExecuteIndirect::LoadAssets()
 
 		m_device->CreateDepthStencilView(m_depthStencil.Get(), &depthStencilDesc, m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
 	}
+	ComPtr<ID3D12Resource> textureUploadHeap;
 
+	// Create the texture.
+	{
+		int w, h, n;
+		unsigned char *data = stbi_load("mc.png", &w, &h, &n, 0);
+
+		// Describe and create a Texture2D.
+		D3D12_RESOURCE_DESC textureDesc = {};
+		textureDesc.MipLevels = 1;
+		textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		textureDesc.Width = w;
+		textureDesc.Height = h;
+		textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		textureDesc.DepthOrArraySize = 1;
+		textureDesc.SampleDesc.Count = 1;
+		textureDesc.SampleDesc.Quality = 0;
+		textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+
+		ThrowIfFailed(m_device->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&textureDesc,
+			D3D12_RESOURCE_STATE_COPY_DEST,
+			nullptr,
+			IID_PPV_ARGS(&m_texture)));
+
+		const UINT64 uploadBufferSize = GetRequiredIntermediateSize(m_texture.Get(), 0, 1);
+
+		// Create the GPU upload buffer.
+		ThrowIfFailed(m_device->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize),
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&textureUploadHeap)));
+
+		// Copy data to the intermediate upload heap and then schedule a copy 
+		// from the upload heap to the Texture2D.
+
+
+		D3D12_SUBRESOURCE_DATA textureData = {};
+		textureData.pData = data;
+		textureData.RowPitch = w * n;
+		textureData.SlicePitch = textureData.RowPitch * n;
+
+		UpdateSubresources(m_commandList.Get(), m_texture.Get(), textureUploadHeap.Get(), 0, 0, 1, &textureData);
+		m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+
+		// Describe and create a SRV for the texture.
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format = textureDesc.Format;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MipLevels = 1;
+
+		CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), 0, m_cbvSrvUavDescriptorSize);
+
+		m_device->CreateShaderResourceView(m_texture.Get(), &srvDesc, cbvSrvHandle); // cbvSrvHandlem_srvHeap->GetCPUDescriptorHandleForHeapStart());
+
+																					 // Close the command list and execute it to begin the initial GPU setup.
+		//ThrowIfFailed(m_commandList->Close());
+		//ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
+		//m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+	}
 	// Create the constant buffers.
 	{
 	/*	ThrowIfFailed(m_device->CreateCommittedResource(
@@ -366,9 +453,18 @@ void D3D12ExecuteIndirect::LoadAssets()
 					auto v1=  (sin((float)z / Depth * 3.141f * 4.0f + 1.0f) ) ;
 
 					auto v3 = (v0*v1) / 2.0f + 0.5f;
-					if ( y < v3*(Height/4-1) )
+					auto surface = v3*(Height / 4 - 1);
+					if ( y < surface  && y > (surface-2) )
 					{
-						m_constantBufferData[n].color = XMFLOAT4(GetRandomFloat(0.0f, 1.0f), GetRandomFloat(0.0f, 1.0f), GetRandomFloat(0.0f, 1.0f), 1.0f);
+						int tx = 6;  //rand() % 16;
+						int ty = 3; // rand() % 16;
+						m_constantBufferData[n].color = XMFLOAT4( (float)tx / 16.0f, (float)ty/16.0f, GetRandomFloat(0.0f, 1.0f), 1.0f);
+					}
+					else if (y < (surface -2))
+					{
+						int tx = 2;  //rand() % 16;
+						int ty = 0; // rand() % 16;
+						m_constantBufferData[n].color = XMFLOAT4((float)tx / 16.0f, (float)ty / 16.0f, GetRandomFloat(0.0f, 1.0f), 1.0f);
 					}
 					else
 					{
@@ -427,7 +523,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 		srvDesc.Buffer.StructureByteStride = sizeof(SceneConstantBuffer);
 		srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 
-		CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CbvSrvOffset, m_cbvSrvUavDescriptorSize);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CbvSrvOffset + NumTexture, m_cbvSrvUavDescriptorSize);
 		for (UINT frame = 0; frame < FrameCount; frame++)
 		{
 			srvDesc.Buffer.FirstElement = frame * TriangleCount;
@@ -515,7 +611,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 		srvDesc.Buffer.StructureByteStride = sizeof(IndirectCommand);
 		srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 
-		CD3DX12_CPU_DESCRIPTOR_HANDLE commandsHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CommandsOffset, m_cbvSrvUavDescriptorSize);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE commandsHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CommandsOffset + NumTexture , m_cbvSrvUavDescriptorSize);
 		for (UINT frame = 0; frame < FrameCount; frame++)
 		{
 			srvDesc.Buffer.FirstElement = frame * TriangleCount;
@@ -524,7 +620,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 		}
 
 		// Create the unordered access views (UAVs) that store the results of the compute work.
-		CD3DX12_CPU_DESCRIPTOR_HANDLE processedCommandsHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), ProcessedCommandsOffset, m_cbvSrvUavDescriptorSize);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE processedCommandsHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), ProcessedCommandsOffset + NumTexture, m_cbvSrvUavDescriptorSize);
 		for (UINT frame = 0; frame < FrameCount; frame++)
 		{
 			// Allocate a buffer large enough to hold all of the indirect commands
@@ -633,7 +729,7 @@ void D3D12ExecuteIndirect::OnUpdate()
 				}
 				else
 				{
-					m_constantBufferData[n].color = XMFLOAT4( GetRandomFloat(0.1,0.5), 0, 0, 1.0);
+					m_constantBufferData[n].color = XMFLOAT4( 7 / 16.0f, 0, 0, 1.0f);
 				}
 			}
 		}
@@ -753,7 +849,7 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 
 		m_computeCommandList->SetComputeRootDescriptorTable(
 			SrvUavTable,
-			CD3DX12_GPU_DESCRIPTOR_HANDLE(cbvSrvUavHandle, CbvSrvOffset + frameDescriptorOffset, m_cbvSrvUavDescriptorSize));
+			CD3DX12_GPU_DESCRIPTOR_HANDLE(cbvSrvUavHandle, CbvSrvOffset + NumTexture + frameDescriptorOffset, m_cbvSrvUavDescriptorSize));
 
 		m_csRootConstants.cullOffset = m_Position.z;
 		m_computeCommandList->SetComputeRoot32BitConstants(RootConstants, 4, reinterpret_cast<void*>(&m_csRootConstants), 0);
@@ -778,6 +874,7 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 		ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
 		m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 		m_commandList->SetGraphicsRoot32BitConstants(View, ViewInUInt32s, reinterpret_cast<void*>(&m_View), 0);
+		m_commandList->SetGraphicsRootDescriptorTable(Texture, m_cbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart() );
 
 		m_commandList->RSSetViewports(1, &m_viewport);
 		m_commandList->RSSetScissorRects(1, &m_scissorRect);

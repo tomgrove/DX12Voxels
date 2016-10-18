@@ -48,6 +48,7 @@ private:
 	static const float VoxelHalfWidth;					// The x and y offsets used by the triangle vertices.
 	static const float TriangleDepth;					// The z offset used by the triangle vertices.
 	static const float CullingCutoff;					// The +/- x offset of the clipping planes in homogenous space [-1,1].
+	static const UINT NumTexture = 1;
 
 	// Vertex definition.
 	struct Vertex
@@ -103,6 +104,7 @@ private:
 	{
 		View,
 		Cbv,
+		Texture,
 		GraphicsRootParametersCount
 	};
 
@@ -177,6 +179,7 @@ private:
 	ComPtr<ID3D12Resource> m_commandBuffer;
 	ComPtr<ID3D12Resource> m_processedCommandBuffers[FrameCount];
 	ComPtr<ID3D12Resource> m_processedCommandBufferCounterReset;
+	ComPtr<ID3D12Resource> m_texture;
 	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 
 	void LoadPipeline();
