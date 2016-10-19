@@ -34,7 +34,7 @@ public:
 	virtual void OnKeyDown(UINT8 key);
 
 private:
-	static const UINT FrameCount = 3;
+	static const UINT FrameCount = 2;
 	static const UINT Depth		= 64;
 	static const UINT Height	= 64;
 	static const UINT Width		= 64;
@@ -62,7 +62,6 @@ private:
 	// Constant buffer definition.
 	struct SceneConstantBuffer
 	{
-		XMFLOAT4 offset;
 		XMFLOAT4 color;
 	};
 
@@ -180,6 +179,7 @@ private:
 	void PopulateCommandLists();
 	void WaitForGpu();
 	void MoveToNextFrame();
+	XMFLOAT3 GetPositionFromIndex(UINT index) const ;
 
 	// We pack the UAV counter into the same buffer as the commands rather than create
 	// a separate 64K resource/heap for it. The counter must be aligned on 4K boundaries,

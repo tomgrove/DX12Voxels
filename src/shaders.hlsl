@@ -9,10 +9,12 @@
 //
 //*********************************************************
 
+#define Depth 64
+#define Height 64
+#define Width 64
 
 struct SceneConstantBuffer
 {
-	float4 offset;
 	float4 color;
 };
 
@@ -86,7 +88,16 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 
 };
 
-	result.position = mul( verts[vid + pid*4]  + cbv[index].offset + tileoffset, projection);
+	float4 offset; 
+
+	offset.z = index / (Depth*Height);
+	offset.y = (index % (Depth*Height)) / (Height);
+	offset.x = (index % (Depth*Height)) % Width;
+	offset.w = 0;
+
+	offset *= (scale*2.0f);
+
+	result.position = mul( verts[vid + pid*4]  +  offset + tileoffset, projection);
 
 	float intensity = saturate((16.0f - result.position.z) / 2.0f);
 	float3 light = saturate(dot(normalize( float3(1,1,-2) ), norms[pid])) * float3(1,1,1);

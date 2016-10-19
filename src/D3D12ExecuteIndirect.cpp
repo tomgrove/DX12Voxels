@@ -195,6 +195,7 @@ void D3D12ExecuteIndirect::LoadPipeline()
 // Load the sample assets.
 void D3D12ExecuteIndirect::LoadAssets()
 {
+	unsigned char* texturedata = nullptr;
 	// Create the root signatures.
 	{
 		D3D12_FEATURE_DATA_ROOT_SIGNATURE featureData = {};
@@ -207,7 +208,6 @@ void D3D12ExecuteIndirect::LoadAssets()
 			featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
 		}
 
-		
 		CD3DX12_ROOT_PARAMETER1 rootParameters[GraphicsRootParametersCount];
 
 		CD3DX12_DESCRIPTOR_RANGE1 texranges[1];
@@ -353,7 +353,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 	// Create the texture.
 	{
 		int w, h, n;
-		unsigned char *data = stbi_load("mc.png", &w, &h, &n, 0);
+		texturedata = stbi_load("mc.png", &w, &h, &n, 0);
 
 		// Describe and create a Texture2D.
 		D3D12_RESOURCE_DESC textureDesc = {};
@@ -391,7 +391,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 
 
 		D3D12_SUBRESOURCE_DATA textureData = {};
-		textureData.pData = data;
+		textureData.pData = texturedata;
 		textureData.RowPitch = w * n;
 		textureData.SlicePitch = textureData.RowPitch * n;
 
@@ -432,9 +432,6 @@ void D3D12ExecuteIndirect::LoadAssets()
 				for (int x = 0; x < Width; x++)
 				{
 					UINT n = (Depth*Height) * z + Height * y + x;
-
-					auto offset = XMFLOAT4(x * VoxelHalfWidth * 2.0f, y * VoxelHalfWidth * 2.0f, z * VoxelHalfWidth * 2.0f, 0);
-					m_constantBufferData[n].offset = offset;
 
 					auto v0 = (cos((float)x / Width * 3.141f * 4.0f + 1.0f) ) ;
 					auto v1=  (sin((float)z / Depth * 3.141f * 4.0f + 1.0f) ) ;
@@ -654,6 +651,8 @@ void D3D12ExecuteIndirect::LoadAssets()
 		// complete before continuing.
 		WaitForGpu();
 	}
+
+	stbi_image_free(texturedata);
 }
 
 // Get a random float value between min and max.
@@ -662,6 +661,14 @@ float D3D12ExecuteIndirect::GetRandomFloat(float min, float max)
 	float scale = static_cast<float>(rand()) / RAND_MAX;
 	float range = max - min;
 	return scale * range + min;
+}
+
+ XMFLOAT3 D3D12ExecuteIndirect::GetPositionFromIndex(UINT index) const 
+{
+	 const float Scale = VoxelHalfWidth * 2.0f;
+	 return  XMFLOAT3( ((index % (Depth*Height)) % Width) * Scale, 
+					   ((index % (Depth*Height) ) / Height) * Scale, 
+					   (index / (Depth*Height)) * Scale );
 }
 
 // Update frame-based values.
@@ -676,9 +683,10 @@ void D3D12ExecuteIndirect::OnUpdate()
 	{
 		for (UINT n = 0; n < TriangleCount; n++)
 		{
-			XMFLOAT3 dist(m_constantBufferData[n].offset.x + m_Position.x,
-				m_constantBufferData[n].offset.y + m_Position.y,
-				m_constantBufferData[n].offset.z + (m_Position.z - 2*VoxelHalfWidth));
+			XMFLOAT3 voxpos = GetPositionFromIndex(n);
+			XMFLOAT3 dist(voxpos.x + m_Position.x,
+				          voxpos.y + m_Position.y,
+				          voxpos.z + (m_Position.z - 2*VoxelHalfWidth));
 
 			if ((dist.x*dist.x + dist.y*dist.y + dist.z*dist.z) < 0.5f ) //(VoxelHalfWidth*VoxelHalfWidth) )
 			{
@@ -846,7 +854,6 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 
 		// Indicate that the command buffer will be used for indirect drawing
 		// and that the back buffer will be used as a render target.
-
 
 		D3D12_RESOURCE_BARRIER barriers[2];
 		UINT barrierIndex = 0;

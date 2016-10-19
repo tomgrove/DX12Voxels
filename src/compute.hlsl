@@ -17,7 +17,6 @@
 
 struct SceneConstantBuffer
 {
-	float4 offset;
 	float4 color;
 };
 
