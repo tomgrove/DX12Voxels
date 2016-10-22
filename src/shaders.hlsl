@@ -13,7 +13,7 @@
 
 struct SceneConstantBuffer
 {
-	float4 color;
+	uint color;
 };
 
 cbuffer ViewConstantBuffer : register(b1)
@@ -86,38 +86,46 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 
 };
 
-	float4 offset; 
+	float4 brick; 
 
-	offset.z = uint( index / (cWidth*cHeight) );
-	offset.y = uint( (index % (cWidth*cHeight))) / (cWidth);
-	offset.x = uint( (index % (cWidth*cHeight))) % cWidth;
-	offset.w = 0;
+	brick.z = uint( index /  (cWidthInBricks*cHeightInBricks) );
+	brick.y = uint( (index % (cWidthInBricks*cHeightInBricks))) / (cWidthInBricks);
+	brick.x = uint( (index % (cWidthInBricks*cHeightInBricks))) % cWidthInBricks;
+	brick.w = 0;
 
-	offset *= (scale*2.0f);
+	brick *= uint4(cBrickWidth, cBrickHeight, cBrickDepth, 0.0);
+	brick *= (scale*2.0f);
 
 	uint id = pid % 6;
 
-	/*float4 boffset;
+	float4 voxel;
 
 	uint voxid = pid / 6;
 
-	boffset.z = voxid / 16;
-	boffset.y = (voxid % 16) / 4;
-	boffset.x = ( voxid % 16) % 4;
-	boffset.w = 0;
+	voxel.z = voxid / (cBrickWidth*cBrickHeight);
+	voxel.y = (voxid % (cBrickWidth*cBrickHeight)) / cBrickWidth;
+	voxel.x = ( voxid % (cBrickWidth*cBrickHeight)) % cBrickWidth;
+	voxel.w = 0;
 
-	boffset *= (Width*scale*2.0);
+	voxel *= (scale*2.0);
 
-	offset += boffset;*/
+	float4 vertex;
 
-	result.position = mul( verts[vid + id*4]  +  offset + tileoffset, projection);
+	uint voxmatidx = index*cBrickWidth*cBrickHeight*cBrickDepth  + voxid;
+
+	vertex = (verts[vid + id * 4] + brick + voxel + tileoffset ) * ( cbv[ voxmatidx ].color != 0 ? 1 : 0 );
+
+	result.position = mul( vertex, projection);
 
 	float intensity = saturate((16.0f - result.position.z) / 2.0f);
 	float3 light = saturate(dot(normalize( float3(1,1,-2) ), norms[id])) * float3(1,1,1);
 
 	float3 blended = (1.0 - intensity) * float3(0.9, 0.9, 1) + intensity * light;
 	result.color = float4(blended, 1.0f);
-	result.uv.xy = uvs[vid] / 17.0f + cbv[index].color.xy;
+
+	float2 tex = float2(cbv[voxmatidx].color % 16, cbv[voxmatidx].color / 16) / 16.0f;
+
+	result.uv.xy = uvs[vid] / 17.0f + tex;
 
 	return result;
 }

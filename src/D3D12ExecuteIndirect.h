@@ -44,11 +44,16 @@ private:
 	static const UINT Depth		= cDepth;
 	static const UINT Height	= cHeight;
 	static const UINT Width		= cWidth;
+	static const UINT BrickWidth =  cBrickWidth;
+	static const UINT BrickHeight = cBrickHeight;
+	static const UINT BrickDepth =  cBrickDepth;
+	static const UINT VoxelsPerBrick = BrickWidth*BrickDepth *BrickHeight;
 	static const UINT TileX = 1;
 	static const UINT TileZ = 1;
-	static const UINT TriangleCount = Depth*Height*Width;
-	static const UINT TriangleResourceCount = TriangleCount * FrameCount;
-	static const UINT CommandSizePerFrame;				// The size of the indirect commands to draw all of the triangles in a single frame.
+	static const UINT BrickCount = cDepthInBricks*cHeightInBricks*cWidthInBricks;
+	static const UINT VoxelCount = BrickCount * VoxelsPerBrick;
+	static const UINT BrickResourceCount = BrickCount * FrameCount;
+	static const UINT CommandSizePerFrame;			     // The size of the indirect commands to draw all of the triangles in a single frame.
 	static const UINT CommandBufferCounterOffset;		// The offset of the UAV counter in the processed command buffer.
 	static const UINT ComputeThreadBlockSize = 128;		// Should match the value in compute.hlsl.
 	static const float VoxelHalfWidth;					// The x and y offsets used by the triangle vertices.
@@ -68,7 +73,7 @@ private:
 	// Constant buffer definition.
 	struct SceneConstantBuffer
 	{
-		XMFLOAT4 color;
+		UINT color;
 	};
 
 	// Root constants for the compute shader.
@@ -183,6 +188,8 @@ private:
 	void WaitForGpu();
 	void MoveToNextFrame();
 	XMFLOAT3 GetPositionFromIndex(UINT index) const ;
+	XMFLOAT3 GetBrickPositionFromIndex(UINT index) const;
+	XMFLOAT3 GetVoxelPositionFromIndex(UINT index) const;
 
 	// We pack the UAV counter into the same buffer as the commands rather than create
 	// a separate 64K resource/heap for it. The counter must be aligned on 4K boundaries,

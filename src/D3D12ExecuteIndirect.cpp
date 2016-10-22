@@ -14,7 +14,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-const UINT D3D12ExecuteIndirect::CommandSizePerFrame = TriangleCount * sizeof(IndirectCommand);
+const UINT D3D12ExecuteIndirect::CommandSizePerFrame = BrickCount * sizeof(IndirectCommand);
 const UINT D3D12ExecuteIndirect::CommandBufferCounterOffset = AlignForUavCounter(D3D12ExecuteIndirect::CommandSizePerFrame);
 const float D3D12ExecuteIndirect::VoxelHalfWidth = 0.05f;
 const float D3D12ExecuteIndirect::TriangleDepth = 1.0f;
@@ -33,12 +33,12 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
 	m_csRootConstants()
 {
 	ZeroMemory(m_fenceValues, sizeof(m_fenceValues));
-	m_constantBufferData.resize(TriangleCount);
+	m_constantBufferData.resize(VoxelCount);
 
 	m_csRootConstants.xOffset = VoxelHalfWidth;
 	m_csRootConstants.zOffset = TriangleDepth;
 	m_csRootConstants.cullOffset = CullingCutoff;
-	m_csRootConstants.commandCount = TriangleCount;
+	m_csRootConstants.commandCount = BrickCount;
 
 	m_viewport.Width = static_cast<float>(width);
 	m_viewport.Height = static_cast<float>(height);
@@ -427,7 +427,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 	// Create the constant buffers.
 	{
 
-		const UINT constantBufferDataSize = TriangleResourceCount * sizeof(SceneConstantBuffer);
+		const UINT constantBufferDataSize = VoxelCount * FrameCount * sizeof(SceneConstantBuffer);
 
 		ThrowIfFailed(m_device->CreateCommittedResource(
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
@@ -439,34 +439,49 @@ void D3D12ExecuteIndirect::LoadAssets()
 
 		NAME_D3D12_OBJECT(m_constantBuffer);
 
-		for (int z = 0; z < Depth; z++)
+		for (int bz = 0; bz < cDepthInBricks; bz++)
 		{
-			for (int y = 0; y < Height; y++)
+			for (int by = 0; by < cHeightInBricks; by++)
 			{
-				for (int x = 0; x < Width; x++)
+				for (int bx = 0; bx < cWidthInBricks; bx++)
 				{
-					UINT n = (Height*Width) * z + Width * y + x;
+					for (int vz = 0; vz < cBrickDepth; vz++)
+					{
+						for (int vy = 0; vy < cBrickHeight; vy++)
+						{
+							for (int vx = 0; vx < cBrickWidth; vx++)
+							{
+								UINT brick = bz * (cWidthInBricks*cHeightInBricks) + by * cWidthInBricks + bx;
+								UINT voxel = vz * (cBrickWidth*cBrickHeight) + vy * cBrickWidth + vx;
+								UINT n = brick * VoxelsPerBrick + voxel;
 
-					auto v0 = (cos((float)x / Width * 3.141f * 4.0f + 1.0f) ) ;
-					auto v1=  (sin((float)z / Depth * 3.141f * 4.0f + 1.0f) ) ;
+								UINT x = bx * cBrickWidth + vx;
+								UINT y = by * cBrickHeight + vy;
+								UINT z = bz * cBrickDepth + vz;
 
-					auto v3 = (v0*v1) / 2.0f + 0.5f;
-					auto surface = v3*(Height / 1 - 1);
-					if ( y < surface  && y > (surface-6) )
-					{
-						int tx = 6;  //rand() % 16;
-						int ty = 3; // rand() % 16;
-						m_constantBufferData[n].color = XMFLOAT4( (float)tx / 16.0f, (float)ty/16.0f, GetRandomFloat(0.0f, 1.0f), 1.0f);
-					}
-					else if (y < (surface- 2))
-					{
-						int tx = 2;  //rand() % 16;
-						int ty = 0; // rand() % 16;
-						m_constantBufferData[n].color = XMFLOAT4((float)tx / 16.0f, (float)ty / 16.0f, GetRandomFloat(0.0f, 1.0f), 1.0f);
-					}
-					else
-					{
-						m_constantBufferData[n].color = XMFLOAT4(0, 0, 0, 0);
+								auto v0 = (cos((float)x / Width * 3.141f * 4.0f + 1.0f));
+								auto v1 = (sin((float)z / Depth * 3.141f * 4.0f + 1.0f));
+
+								auto v3 = (v0*v1) / 2.0f + 0.5f;
+								auto surface = v3*(Height / 1 - 1);
+								if (y < surface  && y > (surface-6) )
+								{
+									int tx = 6;  //rand() % 16;
+									int ty = 3; // rand() % 16;
+									m_constantBufferData[n].color = tx + ty * 16; //XMFLOAT2((float)tx / 16.0f, (float)ty / 16.0f);// , GetRandomFloat(0.0f, 1.0f), 1.0f);
+								}
+								else if (y < (surface- 2))
+								{
+									int tx = 2;  //rand() % 16;
+									int ty = 0; // rand() % 16;
+									m_constantBufferData[n].color = tx + ty * 16; // XMFLOAT2((float)tx / 16.0f, (float)ty / 16.0f); // , GetRandomFloat(0.0f, 1.0f), 1.0f);
+								} 
+								else
+								{
+									m_constantBufferData[n].color = 0; // XMFLOAT2(0, 0);
+								}
+							}
+						}
 					}
 				}
 			}
@@ -475,7 +490,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 		{
 			CD3DX12_RANGE readRange(0, 0);		// We do not intend to read from this resource on the CPU.
 			ThrowIfFailed(m_constantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&m_pCbvDataBegin)));
-			const size_t size = TriangleCount * sizeof(SceneConstantBuffer);
+			const size_t size = VoxelCount * sizeof(SceneConstantBuffer);
 			memcpy(m_pCbvDataBegin, &m_constantBufferData[0], size);
 		}
 
@@ -485,7 +500,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.Buffer.NumElements = TriangleCount;
+		srvDesc.Buffer.NumElements = VoxelCount;
 		srvDesc.Buffer.StructureByteStride = sizeof(SceneConstantBuffer);
 		srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 		srvDesc.Buffer.FirstElement = 0;
@@ -493,7 +508,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 		CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CbvSrvOffset + NumTexture, m_cbvSrvUavDescriptorSize);
 		for (int i = 0; i < FrameCount; i++)
 		{
-			srvDesc.Buffer.FirstElement = i * TriangleCount;
+			srvDesc.Buffer.FirstElement = i * VoxelCount;
 			m_device->CreateShaderResourceView(m_constantBuffer.Get(), &srvDesc, cbvSrvHandle);
 			cbvSrvHandle.Offset(CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize);
 		}
@@ -522,7 +537,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 	// Create the command buffers and UAVs to store the results of the compute work.
 	{
 		std::vector<IndirectCommand> commands;
-		commands.resize(TriangleResourceCount);
+		commands.resize(BrickResourceCount);
 		const UINT commandBufferSize = CommandSizePerFrame ;
 
 		D3D12_RESOURCE_DESC commandBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(commandBufferSize);
@@ -546,11 +561,11 @@ void D3D12ExecuteIndirect::LoadAssets()
 
 		UINT commandIndex = 0;
 
-		for (UINT n = 0; n < TriangleCount; n++)
+		for (UINT n = 0; n < BrickCount; n++)
 		{
 			commands[commandIndex].index = n;
 			commands[commandIndex].drawArguments.VertexCountPerInstance = 4;
-			commands[commandIndex].drawArguments.InstanceCount = 6;
+			commands[commandIndex].drawArguments.InstanceCount = 6 * VoxelsPerBrick;
 			commands[commandIndex].drawArguments.StartVertexLocation = 0;
 			commands[commandIndex].drawArguments.StartInstanceLocation = 0;
 
@@ -572,7 +587,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.Buffer.NumElements = TriangleCount;
+		srvDesc.Buffer.NumElements = BrickCount;
 		srvDesc.Buffer.StructureByteStride = sizeof(IndirectCommand);
 		srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 		srvDesc.Buffer.FirstElement = 0;
@@ -605,7 +620,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 			uavDesc.Format = DXGI_FORMAT_UNKNOWN;
 			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
 			uavDesc.Buffer.FirstElement = 0;
-			uavDesc.Buffer.NumElements = TriangleCount;
+			uavDesc.Buffer.NumElements = BrickCount;
 			uavDesc.Buffer.StructureByteStride = sizeof(IndirectCommand);
 			uavDesc.Buffer.CounterOffsetInBytes = CommandBufferCounterOffset;
 			uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
@@ -672,12 +687,39 @@ float D3D12ExecuteIndirect::GetRandomFloat(float min, float max)
 	return scale * range + min;
 }
 
+XMFLOAT3 D3D12ExecuteIndirect::GetBrickPositionFromIndex(UINT index) const 
+{
+	const int slice = cWidthInBricks*cHeightInBricks;
+	int bi = index / VoxelsPerBrick;
+	float z = bi / slice;
+	float y = (bi % slice) / cWidthInBricks;
+	float x = (bi % slice) % cWidthInBricks;
+
+	return XMFLOAT3(x, y, z);
+}
+
+XMFLOAT3 D3D12ExecuteIndirect::GetVoxelPositionFromIndex(UINT index) const
+{
+	int vi = index % VoxelsPerBrick;
+	const int slice = cBrickWidth*cBrickHeight;
+	float z = vi / slice;
+	float y = (vi % slice) / cBrickWidth;
+	float x = (vi % slice) % cBrickWidth;
+
+	return XMFLOAT3(x, y, z);
+}
+
+
+
  XMFLOAT3 D3D12ExecuteIndirect::GetPositionFromIndex(UINT index) const 
 {
 	 const float Scale = VoxelHalfWidth * 2.0f;
-	 return  XMFLOAT3( ((index % (Width*Height)) % Width) * Scale, 
-					   ((index % (Width*Height) ) / Width) * Scale, 
-					   (index / (Width*Height)) * Scale );
+	 auto brick = GetBrickPositionFromIndex(index);
+	 auto voxel = GetVoxelPositionFromIndex(index);
+
+	 return  XMFLOAT3( (brick.x * cBrickWidth + voxel.x) * Scale, 
+					   (brick.y * cBrickHeight + voxel.y )* Scale, 
+					   (brick.z * cBrickDepth + voxel.z) * Scale );
 }
 
 // Update frame-based values.
@@ -690,7 +732,7 @@ void D3D12ExecuteIndirect::OnUpdate()
 
 	if (m_VoxOp != None)
 	{
-		for (UINT n = 0; n < TriangleCount; n++)
+		for (UINT n = 0; n < VoxelCount; n++)
 		{
 			XMFLOAT3 voxpos = GetPositionFromIndex(n);
 			XMFLOAT3 dist(voxpos.x + m_Position.x,
@@ -701,18 +743,18 @@ void D3D12ExecuteIndirect::OnUpdate()
 			{
 				if (m_VoxOp == Mine)
 				{
-					m_constantBufferData[n].color = XMFLOAT4(0, 0, 0, 0);
+					m_constantBufferData[n].color = 0; // XMFLOAT2(0, 0); // 0, 0);
 				}
 				else
 				{
-					m_constantBufferData[n].color = XMFLOAT4( 7 / 16.0f, 0, 0, 1.0f);
+					m_constantBufferData[n].color = 7; // XMFLOAT2(7 / 16.0f, 0); // , 0, 0, 1.0f);
 				}
 			}
 		}
 
 		m_bufIndex =  (m_bufIndex + 1) % FrameCount;
-		UINT8* destination = m_pCbvDataBegin + (TriangleCount * m_bufIndex * sizeof(SceneConstantBuffer));
-		memcpy(destination, &m_constantBufferData[0], TriangleCount * sizeof(SceneConstantBuffer));
+		UINT8* destination = m_pCbvDataBegin + (VoxelCount * m_bufIndex * sizeof(SceneConstantBuffer));
+		memcpy(destination, &m_constantBufferData[0], VoxelCount * sizeof(SceneConstantBuffer));
 		m_RunCompute = true;
 		m_VoxOp = None;
 	}
@@ -834,7 +876,7 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 		D3D12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_processedCommandBuffers[m_bufIndex].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		m_computeCommandList->ResourceBarrier(1, &barrier);
 
-		m_computeCommandList->Dispatch(static_cast<UINT>(ceil(TriangleCount / float(ComputeThreadBlockSize))), 1, 1);
+		m_computeCommandList->Dispatch(static_cast<UINT>(ceil(BrickCount / float(ComputeThreadBlockSize))), 1, 1);
 	}
 
 
@@ -911,7 +953,7 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 
 					m_commandList->ExecuteIndirect(
 						m_commandSignature.Get(),
-						TriangleCount/8, // er ... make it a bit smaller? and crashier?
+						BrickCount, // er ... make it a bit smaller? and crashier?
 						m_processedCommandBuffers[m_bufIndex].Get(),
 						0,
 						m_processedCommandBuffers[m_bufIndex].Get(),

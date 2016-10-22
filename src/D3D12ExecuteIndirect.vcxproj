@@ -106,7 +106,10 @@
     </CustomBuild>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="defines.h" />
+    <CustomBuild Include="defines.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</DeploymentContent>
+    </CustomBuild>
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="Win32Application.h" />
     <ClInclude Include="D3D12ExecuteIndirect.h" />

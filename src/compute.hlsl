@@ -15,7 +15,7 @@
 
 struct SceneConstantBuffer
 {
-	float4 color;
+	uint color;
 };
 
 struct IndirectCommand
@@ -36,10 +36,43 @@ StructuredBuffer<SceneConstantBuffer> cbv				: register(t0);	// SRV: Wrapped con
 StructuredBuffer<IndirectCommand> inputCommands			: register(t1);	// SRV: Indirect commands
 AppendStructuredBuffer<IndirectCommand> outputCommands	: register(u0);	// UAV: Processed indirect commands
 
-bool getcolour(uint x, uint y, uint z)
+/*
+bool GetColour(uint3 pos)
 {
-	uint index = z * (cWidth*cHeight) + y * cWidth + x;
+	uint index = pos.z * (cWidth*cHeight) + pos.y * cWidth + pos.x;
 	return cbv[index].color.w > 0;
+}*/
+
+bool IsBrickSolid(uint3  InOffset)
+{
+	uint voxelsPerBrick = cBrickWidth*cBrickHeight*cBrickDepth;
+	uint index = InOffset.z * (cWidthInBricks*cHeightInBricks) + InOffset.y * cWidthInBricks + InOffset.x;
+	index *= voxelsPerBrick;
+	for (uint v = 0; v < voxelsPerBrick; v++ )
+	{
+		if (cbv[index+v].color == 0)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool IsBrickEmpty(uint3  InOffset)
+{
+	uint voxelsPerBrick = cBrickWidth*cBrickHeight*cBrickDepth;
+	uint index = InOffset.z * (cWidthInBricks*cHeightInBricks) + InOffset.y * cWidthInBricks + InOffset.x;
+	index *= voxelsPerBrick;
+	for (uint v = 0; v < voxelsPerBrick; v++)
+	{
+		if (cbv[index + v].color != 0)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 [numthreads(threadBlockSize, 1, 1)]
@@ -54,21 +87,24 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 
 	if (index < commandCount)
 	{
-		if (cbv[index].color.w == 0)
+//		outputCommands.Append(inputCommands[index]);
+	//	return;
+
+		uint3 brick;
+
+		brick.z = index /  (cWidthInBricks*cHeightInBricks);
+		brick.y = (index % (cWidthInBricks*cHeightInBricks)) / cWidthInBricks;
+		brick.x = (index % (cWidthInBricks*cHeightInBricks)) % cWidthInBricks;
+
+		if (IsBrickEmpty(brick))
 		{
 			return;
-		}
+		} 
 
-		uint z = index / (cWidth*cHeight);
-		uint y = (index %  (cWidth*cHeight) ) / (cWidth);
-		uint x = (index % (cWidth*cHeight)) % cWidth;
-
-		// bit of crude culling 
-
-		if (z > 0 && z < (cDepth-1))
+		if (brick.z > 0 && brick.z < (cDepthInBricks-1))
 		{
-			if ( !getcolour(x, y, z - 1 ) ||
-				 !getcolour(x, y, z + 1) )
+			if ( !IsBrickSolid( brick - uint3(0, 0,1 )) ||
+				 !IsBrickSolid( brick + uint3(0, 0,1)) )
 			{
 				outputCommands.Append(inputCommands[index]);
 				return;
@@ -80,10 +116,10 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 			return;
 		}
 
-		if (y > 0 && y < (cHeight-1))
+		if ( brick.y > 0 && brick.y < (cHeightInBricks-1))
 		{
-			if ( !getcolour(x, y-1, z) ||
-				 !getcolour(x, y+1, z))
+			if ( !IsBrickSolid( brick - uint3(0, 1, 0)) ||
+				 !IsBrickSolid( brick + uint3(0, 1, 0)))
 			{
 			  outputCommands.Append(inputCommands[index]);
 			  return;
@@ -95,10 +131,10 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 			return;
 		}
 
-		if (x > 0 && x < (cWidth-1))
+		if ( brick.x > 0 && brick.x < (cWidthInBricks-1))
 		{
-			if ( !getcolour(x-1, y, z) ||
-				 !getcolour(x+1, y, z))
+			if ( !IsBrickSolid( brick - uint3(1, 0, 0)) ||
+				 !IsBrickSolid( brick + uint3(1, 0, 0)))
 			{
 		     	outputCommands.Append(inputCommands[index]);
 			}
