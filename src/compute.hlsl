@@ -11,9 +11,7 @@
 
 #define threadBlockSize 128
 
-#define Depth 64
-#define Height 64
-#define Width 64
+#include "defines.h"
 
 struct SceneConstantBuffer
 {
@@ -40,7 +38,7 @@ AppendStructuredBuffer<IndirectCommand> outputCommands	: register(u0);	// UAV: P
 
 bool getcolour(uint x, uint y, uint z)
 {
-	uint index = z * (Depth*Height) + y * Height + x;
+	uint index = z * (cWidth*cHeight) + y * cWidth + x;
 	return cbv[index].color.w > 0;
 }
 
@@ -61,13 +59,13 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 			return;
 		}
 
-		uint z = index / (Depth*Height);
-		uint y = (index %  (Depth*Height) ) / (Height);
-		uint x = (index % (Depth*Height)) % Width;
+		uint z = index / (cWidth*cHeight);
+		uint y = (index %  (cWidth*cHeight) ) / (cWidth);
+		uint x = (index % (cWidth*cHeight)) % cWidth;
 
 		// bit of crude culling 
 
-		if (z > 0 && z < (Depth-1))
+		if (z > 0 && z < (cDepth-1))
 		{
 			if ( !getcolour(x, y, z - 1 ) ||
 				 !getcolour(x, y, z + 1) )
@@ -82,7 +80,7 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 			return;
 		}
 
-		if (y > 0 && y < (Height-1))
+		if (y > 0 && y < (cHeight-1))
 		{
 			if ( !getcolour(x, y-1, z) ||
 				 !getcolour(x, y+1, z))
@@ -97,7 +95,7 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 			return;
 		}
 
-		if (x > 0 && x < (Width-1))
+		if (x > 0 && x < (cWidth-1))
 		{
 			if ( !getcolour(x-1, y, z) ||
 				 !getcolour(x+1, y, z))

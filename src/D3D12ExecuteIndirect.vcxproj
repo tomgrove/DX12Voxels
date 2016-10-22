@@ -106,6 +106,7 @@
     </CustomBuild>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="defines.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="Win32Application.h" />
     <ClInclude Include="D3D12ExecuteIndirect.h" />

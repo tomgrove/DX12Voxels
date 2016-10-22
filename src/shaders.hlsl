@@ -9,9 +9,7 @@
 //
 //*********************************************************
 
-#define Depth 64
-#define Height 64
-#define Width 64
+#include "defines.h"
 
 struct SceneConstantBuffer
 {
@@ -90,17 +88,32 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 
 	float4 offset; 
 
-	offset.z = index / (Depth*Height);
-	offset.y = (index % (Depth*Height)) / (Height);
-	offset.x = (index % (Depth*Height)) % Width;
+	offset.z = uint( index / (cWidth*cHeight) );
+	offset.y = uint( (index % (cWidth*cHeight))) / (cWidth);
+	offset.x = uint( (index % (cWidth*cHeight))) % cWidth;
 	offset.w = 0;
 
 	offset *= (scale*2.0f);
 
-	result.position = mul( verts[vid + pid*4]  +  offset + tileoffset, projection);
+	uint id = pid % 6;
+
+	/*float4 boffset;
+
+	uint voxid = pid / 6;
+
+	boffset.z = voxid / 16;
+	boffset.y = (voxid % 16) / 4;
+	boffset.x = ( voxid % 16) % 4;
+	boffset.w = 0;
+
+	boffset *= (Width*scale*2.0);
+
+	offset += boffset;*/
+
+	result.position = mul( verts[vid + id*4]  +  offset + tileoffset, projection);
 
 	float intensity = saturate((16.0f - result.position.z) / 2.0f);
-	float3 light = saturate(dot(normalize( float3(1,1,-2) ), norms[pid])) * float3(1,1,1);
+	float3 light = saturate(dot(normalize( float3(1,1,-2) ), norms[id])) * float3(1,1,1);
 
 	float3 blended = (1.0 - intensity) * float3(0.9, 0.9, 1) + intensity * light;
 	result.color = float4(blended, 1.0f);

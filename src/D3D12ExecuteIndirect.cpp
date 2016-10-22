@@ -30,8 +30,7 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
 	m_cullingScissorRect(),
 	m_rtvDescriptorSize(0),
 	m_cbvSrvUavDescriptorSize(0),
-	m_csRootConstants(),
-	m_enableCulling(true)
+	m_csRootConstants()
 {
 	ZeroMemory(m_fenceValues, sizeof(m_fenceValues));
 	m_constantBufferData.resize(TriangleCount);
@@ -53,7 +52,7 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
 	m_cullingScissorRect.right = static_cast<LONG>(center + (center * CullingCutoff));
 	m_cullingScissorRect.bottom = static_cast<LONG>(height);
 
-	m_Position = XMFLOAT3(-0.1f * Width/2 , -0.1f * Height/2, -0.1f * Depth/2);
+	m_Position = XMFLOAT3(-0.1f * cWidth/2 , -0.1f * cHeight/2, -0.1f * cDepth/2);
 	m_VoxOp = None;
 }
 
@@ -275,9 +274,24 @@ void D3D12ExecuteIndirect::LoadAssets()
 		UINT compileFlags = 0;
 #endif
 
-		ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"shaders.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, &error));
-		ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"shaders.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, &error));
-		ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"compute.hlsl").c_str(), nullptr, nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, &error));
+		HRESULT hr = D3DCompileFromFile(GetAssetFullPath(L"shaders.hlsl").c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, &error);
+		if (FAILED(hr))
+		{
+			OutputDebugStringA((char*)error->GetBufferPointer());
+			throw std::exception();
+		}
+		hr = D3DCompileFromFile(GetAssetFullPath(L"shaders.hlsl").c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, &error);
+		if (FAILED(hr))
+		{
+			OutputDebugStringA((char*)error->GetBufferPointer());
+			throw std::exception();
+		}
+		hr = D3DCompileFromFile(GetAssetFullPath(L"compute.hlsl").c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, &error);
+		if (FAILED(hr))
+		{
+			OutputDebugStringA((char*)error->GetBufferPointer());
+			throw std::exception();
+		}
 
 		// Describe and create the graphics pipeline state objects (PSO).
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
@@ -431,20 +445,20 @@ void D3D12ExecuteIndirect::LoadAssets()
 			{
 				for (int x = 0; x < Width; x++)
 				{
-					UINT n = (Depth*Height) * z + Height * y + x;
+					UINT n = (Height*Width) * z + Width * y + x;
 
 					auto v0 = (cos((float)x / Width * 3.141f * 4.0f + 1.0f) ) ;
 					auto v1=  (sin((float)z / Depth * 3.141f * 4.0f + 1.0f) ) ;
 
 					auto v3 = (v0*v1) / 2.0f + 0.5f;
-					auto surface = v3*(Height / 4 - 1);
-					if ( y < surface  && y > (surface-2) )
+					auto surface = v3*(Height / 1 - 1);
+					if ( y < surface  && y > (surface-6) )
 					{
 						int tx = 6;  //rand() % 16;
 						int ty = 3; // rand() % 16;
 						m_constantBufferData[n].color = XMFLOAT4( (float)tx / 16.0f, (float)ty/16.0f, GetRandomFloat(0.0f, 1.0f), 1.0f);
 					}
-					else if (y < (surface -2))
+					else if (y < (surface- 2))
 					{
 						int tx = 2;  //rand() % 16;
 						int ty = 0; // rand() % 16;
@@ -509,7 +523,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 	{
 		std::vector<IndirectCommand> commands;
 		commands.resize(TriangleResourceCount);
-		const UINT commandBufferSize = CommandSizePerFrame * FrameCount;
+		const UINT commandBufferSize = CommandSizePerFrame ;
 
 		D3D12_RESOURCE_DESC commandBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(commandBufferSize);
 		ThrowIfFailed(m_device->CreateCommittedResource(
@@ -530,22 +544,17 @@ void D3D12ExecuteIndirect::LoadAssets()
 
 		NAME_D3D12_OBJECT(m_commandBuffer);
 
-		D3D12_GPU_VIRTUAL_ADDRESS gpuAddress = m_constantBuffer->GetGPUVirtualAddress();
 		UINT commandIndex = 0;
 
-		for (UINT frame = 0; frame < FrameCount; frame++)
+		for (UINT n = 0; n < TriangleCount; n++)
 		{
-			for (UINT n = 0; n < TriangleCount; n++)
-			{
-				commands[commandIndex].index = n;
-				commands[commandIndex].drawArguments.VertexCountPerInstance = 4;
-				commands[commandIndex].drawArguments.InstanceCount = 6;
-				commands[commandIndex].drawArguments.StartVertexLocation = 0;
-				commands[commandIndex].drawArguments.StartInstanceLocation = 0;
+			commands[commandIndex].index = n;
+			commands[commandIndex].drawArguments.VertexCountPerInstance = 4;
+			commands[commandIndex].drawArguments.InstanceCount = 6;
+			commands[commandIndex].drawArguments.StartVertexLocation = 0;
+			commands[commandIndex].drawArguments.StartInstanceLocation = 0;
 
-				commandIndex++;
-				gpuAddress += sizeof(SceneConstantBuffer);
-			}
+			commandIndex++;
 		}
 
 		// Copy data to the intermediate upload heap and then schedule a copy
@@ -566,11 +575,11 @@ void D3D12ExecuteIndirect::LoadAssets()
 		srvDesc.Buffer.NumElements = TriangleCount;
 		srvDesc.Buffer.StructureByteStride = sizeof(IndirectCommand);
 		srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+		srvDesc.Buffer.FirstElement = 0;
 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE commandsHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CommandsOffset + NumTexture , m_cbvSrvUavDescriptorSize);
-		for (UINT frame = 0; frame < FrameCount; frame++)
+		for (int i = 0; i < FrameCount; i++)
 		{
-			srvDesc.Buffer.FirstElement = frame * TriangleCount;
 			m_device->CreateShaderResourceView(m_commandBuffer.Get(), &srvDesc, commandsHandle);
 			commandsHandle.Offset(CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize);
 		}
@@ -666,9 +675,9 @@ float D3D12ExecuteIndirect::GetRandomFloat(float min, float max)
  XMFLOAT3 D3D12ExecuteIndirect::GetPositionFromIndex(UINT index) const 
 {
 	 const float Scale = VoxelHalfWidth * 2.0f;
-	 return  XMFLOAT3( ((index % (Depth*Height)) % Width) * Scale, 
-					   ((index % (Depth*Height) ) / Height) * Scale, 
-					   (index / (Depth*Height)) * Scale );
+	 return  XMFLOAT3( ((index % (Width*Height)) % Width) * Scale, 
+					   ((index % (Width*Height) ) / Width) * Scale, 
+					   (index / (Width*Height)) * Scale );
 }
 
 // Update frame-based values.
@@ -783,8 +792,6 @@ void D3D12ExecuteIndirect::OnKeyDown(UINT8 key)
 		case VK_INSERT:
 			m_VoxOp = Place;
 			break;
-
-
 	}
 }
 

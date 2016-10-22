@@ -12,6 +12,7 @@
 #pragma once
 
 #include "DXSample.h"
+#include "defines.h"
 
 using namespace DirectX;
 
@@ -21,6 +22,11 @@ using namespace DirectX;
 // referenced by the GPU.
 // An example of this can be found in the class method: OnDestroy().
 using Microsoft::WRL::ComPtr;
+
+class VoxelTile
+{
+
+};
 
 class D3D12ExecuteIndirect : public DXSample
 {
@@ -35,11 +41,11 @@ public:
 
 private:
 	static const UINT FrameCount = 2;
-	static const UINT Depth		= 64;
-	static const UINT Height	= 64;
-	static const UINT Width		= 64;
-	static const UINT TileX = 4;
-	static const UINT TileZ = 4;
+	static const UINT Depth		= cDepth;
+	static const UINT Height	= cHeight;
+	static const UINT Width		= cWidth;
+	static const UINT TileX = 1;
+	static const UINT TileZ = 1;
 	static const UINT TriangleCount = Depth*Height*Width;
 	static const UINT TriangleResourceCount = TriangleCount * FrameCount;
 	static const UINT CommandSizePerFrame;				// The size of the indirect commands to draw all of the triangles in a single frame.
@@ -123,7 +129,6 @@ private:
 	ViewConstantBuffer m_View;
 
 	CSRootConstants m_csRootConstants;	// Constants for the compute shader.
-	bool m_enableCulling;				// Toggle whether the compute shader pre-processes the indirect commands.
 
 	// Pipeline objects.
 	D3D12_VIEWPORT m_viewport;
@@ -142,6 +147,7 @@ private:
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_cbvSrvUavHeap;
+
 	UINT m_rtvDescriptorSize;
 	UINT m_cbvSrvUavDescriptorSize;
 	UINT m_frameIndex;
@@ -163,16 +169,13 @@ private:
 	ComPtr<ID3D12PipelineState> m_computeState;
 	ComPtr<ID3D12GraphicsCommandList> m_commandList;
 	ComPtr<ID3D12GraphicsCommandList> m_computeCommandList;
-	ComPtr<ID3D12Resource> m_vertexBuffer;
 	ComPtr<ID3D12Resource> m_constantBuffer;
-	ComPtr<ID3D12Resource> m_viewConstantBuffer;
 	ComPtr<ID3D12Resource> m_depthStencil;
 	ComPtr<ID3D12Resource> m_commandBuffer;
 	ComPtr<ID3D12Resource> m_processedCommandBuffers[FrameCount];
 	ComPtr<ID3D12Resource> m_processedCommandBufferCounterReset;
 	ComPtr<ID3D12Resource> m_texture;
-	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
-
+	
 	void LoadPipeline();
 	void LoadAssets();
 	float GetRandomFloat(float min, float max);
