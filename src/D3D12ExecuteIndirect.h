@@ -128,6 +128,14 @@ private:
 		ComputeRootParametersCount
 	};
 
+	enum CullRootParameters
+	{
+		SrvTable,
+		UavTable,
+		CullRootConstants,			// Root constants that give the shader information about the triangle vertices and culling planes.
+		CullRootParametersCount
+	};
+
 	// CBV/SRV/UAV desciptor heap offsets.
 	enum HeapOffsets
 	{
@@ -196,7 +204,6 @@ private:
 	ComPtr<ID3D12Resource> m_processedCommandBuffers[FrameCount];
 	ComPtr<ID3D12Resource> m_processedCommandBufferCounterReset;
 	ComPtr<ID3D12Resource> m_cullCommandBuffers[FrameCount];
-	ComPtr<ID3D12Resource> m_cullCommandBufferCounterReset;
 	ComPtr<ID3D12Resource> m_texture;
 	
 	void LoadPipeline();

@@ -262,16 +262,18 @@ void D3D12ExecuteIndirect::LoadAssets()
 			NAME_D3D12_OBJECT(m_computeRootSignature);
 		}
 		// Create cull signature
-
-		// Create compute signature.
 		{
-			CD3DX12_DESCRIPTOR_RANGE1 ranges[2];
-			ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
-			ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE);
+			CD3DX12_ROOT_PARAMETER1 cullRootParameters[CullRootParametersCount];
 
-			CD3DX12_ROOT_PARAMETER1 cullRootParameters[ComputeRootParametersCount];
-			cullRootParameters[SrvUavTable].InitAsDescriptorTable(2, ranges);
-			cullRootParameters[RootConstants].InitAsConstants(CullConstantsInU32, 0);
+			CD3DX12_DESCRIPTOR_RANGE1 srvranges[1];
+			srvranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+			cullRootParameters[SrvTable].InitAsDescriptorTable(1, srvranges);
+
+			CD3DX12_DESCRIPTOR_RANGE1 uavranges[1];
+			uavranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE);
+			cullRootParameters[UavTable].InitAsDescriptorTable(1, uavranges);
+
+			cullRootParameters[CullRootConstants].InitAsConstants(CullConstantsInU32, 0);
 
 			CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC cullRootSignatureDesc;
 			cullRootSignatureDesc.Init_1_1(_countof(cullRootParameters), cullRootParameters);
@@ -732,22 +734,6 @@ void D3D12ExecuteIndirect::LoadAssets()
 
 				processedCommandsHandle.Offset(CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize);
 			}
-
-			// Allocate a buffer that can be used to reset the UAV counters and initialize
-			// it to 0.
-			ThrowIfFailed(m_device->CreateCommittedResource(
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-				D3D12_HEAP_FLAG_NONE,
-				&CD3DX12_RESOURCE_DESC::Buffer(sizeof(UINT)),
-				D3D12_RESOURCE_STATE_GENERIC_READ,
-				nullptr,
-				IID_PPV_ARGS(&m_cullCommandBufferCounterReset)));
-
-			UINT8* pMappedCounterReset = nullptr;
-			CD3DX12_RANGE readRange(0, 0);		// We do not intend to read from this resource on the CPU.
-			ThrowIfFailed(m_cullCommandBufferCounterReset->Map(0, &readRange, reinterpret_cast<void**>(&pMappedCounterReset)));
-			ZeroMemory(pMappedCounterReset, sizeof(UINT));
-			m_cullCommandBufferCounterReset->Unmap(0, nullptr);
 		}
 	}
 
@@ -839,15 +825,15 @@ void D3D12ExecuteIndirect::OnUpdate()
 				          voxpos.y + m_Position.y,
 				          voxpos.z + (m_Position.z - 2*VoxelHalfWidth));
 
-			if ((dist.x*dist.x + dist.y*dist.y + dist.z*dist.z) < 0.5f ) //(VoxelHalfWidth*VoxelHalfWidth) )
+			if ((dist.x*dist.x + dist.y*dist.y + dist.z*dist.z) < 0.5f ) 
 			{
 				if (m_VoxOp == Mine)
 				{
-					m_constantBufferData[n].color = 0; // XMFLOAT2(0, 0); // 0, 0);
+					m_constantBufferData[n].color = 0; 
 				}
 				else
 				{
-					m_constantBufferData[n].color = 7; // XMFLOAT2(7 / 16.0f, 0); // , 0, 0, 1.0f);
+					m_constantBufferData[n].color = 7; 
 				}
 			}
 		}
@@ -989,7 +975,9 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 	ThrowIfFailed(m_computeCommandList->Close());
 	
 	{
-		UINT frameDescriptorOffset = m_frameIndex * CbvSrvUavDescriptorCountPerFrame;
+		UINT uavFrameDescriptorOffset = m_frameIndex * CbvSrvUavDescriptorCountPerFrame;
+		UINT srvFrameDescriptorOffset = m_bufIndex * CbvSrvUavDescriptorCountPerFrame;
+
 		D3D12_GPU_DESCRIPTOR_HANDLE cbvSrvUavHandle = m_cbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
 
 		m_cullCommandList->SetComputeRootSignature(m_cullRootSignature.Get());
@@ -998,16 +986,20 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 		m_cullCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
 		m_cullCommandList->SetComputeRootDescriptorTable(
-			SrvUavTable,
-			CD3DX12_GPU_DESCRIPTOR_HANDLE(cbvSrvUavHandle, ProcessedCommandsOffset + NumTexture + frameDescriptorOffset, m_cbvSrvUavDescriptorSize));
+			SrvTable,
+			CD3DX12_GPU_DESCRIPTOR_HANDLE(cbvSrvUavHandle, ProcessedCommandsOffset + NumTexture + srvFrameDescriptorOffset, m_cbvSrvUavDescriptorSize));
+		
+		m_cullCommandList->SetComputeRootDescriptorTable(
+			UavTable,
+			CD3DX12_GPU_DESCRIPTOR_HANDLE(cbvSrvUavHandle, CullCommandsOffset + NumTexture + uavFrameDescriptorOffset, m_cbvSrvUavDescriptorSize));
 
 		//CSCullConstants cullconstants;
 		memcpy( &m_cullConstants.projection, m_View.projection.m, sizeof( float[4][4] ) );
 		m_cullConstants.commandCount = BrickCount;
-		m_cullCommandList->SetComputeRoot32BitConstants(RootConstants, CullConstantsInU32, reinterpret_cast<void*>(&m_cullConstants), 0);
+		m_cullCommandList->SetComputeRoot32BitConstants(CullRootConstants, CullConstantsInU32, reinterpret_cast<void*>(&m_cullConstants), 0);
 
 		// Reset the UAV counter for this frame.
-		m_cullCommandList->CopyBufferRegion(m_cullCommandBuffers[m_frameIndex].Get(), CommandBufferCounterOffset, m_cullCommandBufferCounterReset.Get(), 0, sizeof(UINT));
+		m_cullCommandList->CopyBufferRegion(m_cullCommandBuffers[m_frameIndex].Get(), CommandBufferCounterOffset, m_processedCommandBufferCounterReset.Get(), 0, sizeof(UINT));
 
 		D3D12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_cullCommandBuffers[m_frameIndex].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		m_cullCommandList->ResourceBarrier(1, &barrier);
