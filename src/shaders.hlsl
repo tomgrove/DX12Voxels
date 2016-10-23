@@ -59,7 +59,7 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 		{1,0,0}
 	};
 
-	float2 uvs[4] = { {0,1}, {1,1}, {0,0}, {1,0} };
+	float2 uvs[4] = { {0,0}, {1,0}, {0,1}, {1,1} };
 
 	float4 verts[4 * 6] = {
 	
@@ -128,7 +128,18 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 	float3 blended = (1.0 - intensity) * float3(0.9, 0.9, 1) + intensity * light;
 	result.color = float4(blended, 1.0f);
 
-	float2 tex = float2(cbv[voxmatidx].color % 16, cbv[voxmatidx].color / 16) / 16.0f;
+	uint texid;
+
+	if (id == 2 || id == 3)
+	{
+		texid = (cbv[voxmatidx].color & 0x0000ff00) >> 8;
+	}
+	else
+	{
+		texid = (cbv[voxmatidx].color & 0x000000ff);
+	}
+
+	float2 tex = float2(texid % 16, texid / 16) / 16.0f;
 
 	result.uv.xy = uvs[vid] / 17.0f + tex;
 

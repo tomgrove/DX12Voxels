@@ -513,9 +513,11 @@ void D3D12ExecuteIndirect::LoadAssets()
 								auto surface = v3*(Height / 1 - 1);
 								if (y < surface  && y > (surface-6) )
 								{
-									int tx = 6;  //rand() % 16;
-									int ty = 3; // rand() % 16;
-									m_constantBufferData[n].color = tx + ty * 16; //XMFLOAT2((float)tx / 16.0f, (float)ty / 16.0f);// , GetRandomFloat(0.0f, 1.0f), 1.0f);
+									int tx = 13;  //rand() % 16;
+									int ty = 4 * 16; // rand() % 16;
+									tx += 6 * 256;
+									ty += 3 * (256 * 16);
+									m_constantBufferData[n].color = tx + ty; //XMFLOAT2((float)tx / 16.0f, (float)ty / 16.0f);// , GetRandomFloat(0.0f, 1.0f), 1.0f);
 								}
 								else if (y < (surface- 2))
 								{
