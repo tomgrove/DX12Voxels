@@ -266,7 +266,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 			CD3DX12_ROOT_PARAMETER1 cullRootParameters[CullRootParametersCount];
 
 			CD3DX12_DESCRIPTOR_RANGE1 srvranges[1];
-			srvranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+			srvranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
 			cullRootParameters[SrvTable].InitAsDescriptorTable(1, srvranges);
 
 			CD3DX12_DESCRIPTOR_RANGE1 uavranges[1];
@@ -682,6 +682,23 @@ void D3D12ExecuteIndirect::LoadAssets()
 				processedCommandsHandle.Offset(CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize);
 			}
 
+			CD3DX12_CPU_DESCRIPTOR_HANDLE processedCommandsCountHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), ProcessedCommandsCountOffset + NumTexture, m_cbvSrvUavDescriptorSize);
+			for (UINT frame = 0; frame < FrameCount; frame++)
+			{
+				// Create SRVs for the command buffers.
+				D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+				srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+				srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+				srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+				srvDesc.Buffer.NumElements = 1;
+				srvDesc.Buffer.StructureByteStride = sizeof(UINT);
+				srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+				srvDesc.Buffer.FirstElement = sizeof(IndirectCommand) / sizeof(UINT) * BrickCount;
+
+				m_device->CreateShaderResourceView(m_processedCommandBuffers[frame].Get(), &srvDesc, processedCommandsCountHandle);
+				processedCommandsCountHandle.Offset(CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize);
+			}
+
 			// Allocate a buffer that can be used to reset the UAV counters and initialize
 			// it to 0.
 			ThrowIfFailed(m_device->CreateCommittedResource(
@@ -794,8 +811,6 @@ XMFLOAT3 D3D12ExecuteIndirect::GetVoxelPositionFromIndex(UINT index) const
 
 	return XMFLOAT3(x, y, z);
 }
-
-
 
  XMFLOAT3 D3D12ExecuteIndirect::GetPositionFromIndex(UINT index) const 
 {
@@ -993,7 +1008,6 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 			UavTable,
 			CD3DX12_GPU_DESCRIPTOR_HANDLE(cbvSrvUavHandle, CullCommandsOffset + NumTexture + uavFrameDescriptorOffset, m_cbvSrvUavDescriptorSize));
 
-		//CSCullConstants cullconstants;
 		memcpy( &m_cullConstants.projection, m_View.projection.m, sizeof( float[4][4] ) );
 		m_cullConstants.commandCount = BrickCount;
 		m_cullCommandList->SetComputeRoot32BitConstants(CullRootConstants, CullConstantsInU32, reinterpret_cast<void*>(&m_cullConstants), 0);

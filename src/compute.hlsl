@@ -36,12 +36,6 @@ StructuredBuffer<SceneConstantBuffer> cbv				: register(t0);	// SRV: Wrapped con
 StructuredBuffer<IndirectCommand> inputCommands			: register(t1);	// SRV: Indirect commands
 AppendStructuredBuffer<IndirectCommand> outputCommands	: register(u0);	// UAV: Processed indirect commands
 
-/*
-bool GetColour(uint3 pos)
-{
-	uint index = pos.z * (cWidth*cHeight) + pos.y * cWidth + pos.x;
-	return cbv[index].color.w > 0;
-}*/
 
 bool IsBrickSolid(uint3  InOffset)
 {

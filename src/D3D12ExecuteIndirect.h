@@ -142,7 +142,8 @@ private:
 		CbvSrvOffset = 0,										// SRV that points to the constant buffers used by the rendering thread.
 		CommandsOffset = CbvSrvOffset + 1,									// SRV that points to all of the indirect commands.
 		ProcessedCommandsOffset = CommandsOffset + 1,						// UAV that records the commands we actually want to execute.
-		CullCommandsOffset = ProcessedCommandsOffset + 1,
+		ProcessedCommandsCountOffset = ProcessedCommandsOffset + 1,
+		CullCommandsOffset = ProcessedCommandsCountOffset + 1,
 		CbvSrvUavDescriptorCountPerFrame = CullCommandsOffset + 1		// 2 SRVs + 1 UAV for the compute shader.
 	};
 
