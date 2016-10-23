@@ -41,6 +41,15 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 	float scale = 0.05;
 	PSInput result;
 
+	uint voxid = pid / 6;
+	uint voxmatidx = index*cBrickWidth*cBrickHeight*cBrickDepth + voxid;
+
+	if (cbv[voxmatidx].color == 0)
+	{
+		result.position = float4(0, 0, 0, 0);
+		return result;
+	}
+
 	float3 norms[6] = {
 		{ 0,0,-1},
 		{0,0,1},
@@ -100,8 +109,6 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 
 	float4 voxel;
 
-	uint voxid = pid / 6;
-
 	voxel.z = voxid / (cBrickWidth*cBrickHeight);
 	voxel.y = (voxid % (cBrickWidth*cBrickHeight)) / cBrickWidth;
 	voxel.x = ( voxid % (cBrickWidth*cBrickHeight)) % cBrickWidth;
@@ -111,9 +118,7 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 
 	float4 vertex;
 
-	uint voxmatidx = index*cBrickWidth*cBrickHeight*cBrickDepth  + voxid;
-
-	vertex = (verts[vid + id * 4] + brick + voxel + tileoffset ) * ( cbv[ voxmatidx ].color != 0 ? 1 : 0 );
+	vertex = (verts[vid + id * 4] + brick + voxel + tileoffset);// *(cbv[voxmatidx].color != 0 ? 1 : 0);
 
 	result.position = mul( vertex, projection);
 

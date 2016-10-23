@@ -85,6 +85,16 @@ private:
 		float commandCount;
 	};
 
+#pragma pack(push, 4)
+	struct CSCullConstants
+	{
+		XMFLOAT4X4 projection;
+		float	   commandCount;
+	};
+#pragma pack(pop)
+
+	const UINT CullConstantsInU32 = sizeof(CSCullConstants) / sizeof(UINT);
+
 	// Data structure to match the command signature used for ExecuteIndirect.
 #pragma pack(push, 4)
 	struct IndirectCommand
@@ -124,7 +134,8 @@ private:
 		CbvSrvOffset = 0,										// SRV that points to the constant buffers used by the rendering thread.
 		CommandsOffset = CbvSrvOffset + 1,									// SRV that points to all of the indirect commands.
 		ProcessedCommandsOffset = CommandsOffset + 1,						// UAV that records the commands we actually want to execute.
-		CbvSrvUavDescriptorCountPerFrame = ProcessedCommandsOffset + 1		// 2 SRVs + 1 UAV for the compute shader.
+		CullCommandsOffset = ProcessedCommandsOffset + 1,
+		CbvSrvUavDescriptorCountPerFrame = CullCommandsOffset + 1		// 2 SRVs + 1 UAV for the compute shader.
 	};
 
 	// Each triangle gets its own constant buffer per frame.
@@ -134,6 +145,7 @@ private:
 	ViewConstantBuffer m_View;
 
 	CSRootConstants m_csRootConstants;	// Constants for the compute shader.
+	CSCullConstants  m_cullConstants;
 
 	// Pipeline objects.
 	D3D12_VIEWPORT m_viewport;
@@ -144,10 +156,12 @@ private:
 	ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
 	ComPtr<ID3D12CommandAllocator> m_commandAllocators[FrameCount];
 	ComPtr<ID3D12CommandAllocator> m_computeCommandAllocators[FrameCount];
+	ComPtr<ID3D12CommandAllocator> m_cullCommandAllocators[FrameCount];
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<ID3D12CommandQueue> m_computeCommandQueue;
 	ComPtr<ID3D12RootSignature> m_rootSignature;
 	ComPtr<ID3D12RootSignature> m_computeRootSignature;
+	ComPtr<ID3D12RootSignature> m_cullRootSignature;
 	ComPtr<ID3D12CommandSignature> m_commandSignature;
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
@@ -172,13 +186,17 @@ private:
 	// Asset objects.
 	ComPtr<ID3D12PipelineState> m_pipelineState;
 	ComPtr<ID3D12PipelineState> m_computeState;
+	ComPtr<ID3D12PipelineState> m_cullState;
 	ComPtr<ID3D12GraphicsCommandList> m_commandList;
 	ComPtr<ID3D12GraphicsCommandList> m_computeCommandList;
+	ComPtr<ID3D12GraphicsCommandList> m_cullCommandList;
 	ComPtr<ID3D12Resource> m_constantBuffer;
 	ComPtr<ID3D12Resource> m_depthStencil;
 	ComPtr<ID3D12Resource> m_commandBuffer;
 	ComPtr<ID3D12Resource> m_processedCommandBuffers[FrameCount];
 	ComPtr<ID3D12Resource> m_processedCommandBufferCounterReset;
+	ComPtr<ID3D12Resource> m_cullCommandBuffers[FrameCount];
+	ComPtr<ID3D12Resource> m_cullCommandBufferCounterReset;
 	ComPtr<ID3D12Resource> m_texture;
 	
 	void LoadPipeline();
