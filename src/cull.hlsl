@@ -49,12 +49,17 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 	brick.x = (cmdidx % (cWidthInBricks*cHeightInBricks)) % cWidthInBricks;
 	brick.w = 1.0f;
 	
-	brick *= float4(cBrickWidth * 0.1f, cBrickHeight *0.1f, cBrickDepth * 0.1f,1.0f );
-	brick += float4(cBrickWidth * 0.1f, cBrickHeight *0.1f, cBrickDepth * 0.1, 0.0  ) / 2.0;
+	float3 brickdims = float3(cBrickWidth * 0.1f, cBrickHeight *0.1f, cBrickDepth * 0.1f);
+
+	brick.xyz *= brickdims;
+	brick.xyz += brickdims / 2.0;
+
 	float4 p = mul(brick, projection);
 	float3 clp = p.xyz / (p.w + 0.000001f);
+	float3 bounds = brickdims * float3(0.5 * 1.3f, 0.5 * 2.4f, 0.5) * 1.0f;
+	bounds /= (p.w + 0.000001f);
 
-	if (clp.x > 1.0 || clp.x < -1.0 || clp.y > 1.0f || clp.y < -1.0f || clp.z < 0.0 || clp.z > 1.0f )
+	if (clp.x > (1.0+bounds.x) || clp.x < (-1.0-bounds.x) || clp.y > (bounds.y+1.0f) || clp.y < (-1.0f-bounds.y) || clp.z < -bounds.z || clp.z > (1.0f+bounds.z) )
 	{
 		return;
 	}

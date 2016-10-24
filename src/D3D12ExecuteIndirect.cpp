@@ -30,7 +30,8 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
 	m_cullingScissorRect(),
 	m_rtvDescriptorSize(0),
 	m_cbvSrvUavDescriptorSize(0),
-	m_csRootConstants()
+	m_csRootConstants(),
+	m_Yaw(0)
 {
 	ZeroMemory(m_fenceValues, sizeof(m_fenceValues));
 	m_constantBufferData.resize(VoxelCount);
@@ -829,7 +830,9 @@ XMFLOAT3 D3D12ExecuteIndirect::GetVoxelPositionFromIndex(UINT index) const
 void D3D12ExecuteIndirect::OnUpdate()
 {
 	auto Proj = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_aspectRatio, 0.01f, 20.0f);
-	auto ViewPos = XMMatrixTranslation(m_Position.x, m_Position.y, m_Position.z);
+	auto Rot = XMMatrixRotationRollPitchYaw(0, m_Yaw, 0);
+	auto Trans = XMMatrixTranslation(m_Position.x, m_Position.y, m_Position.z);
+	auto ViewPos = XMMatrixMultiply(Trans, Rot);
 	auto ViewProj = XMMatrixMultiply(ViewPos, Proj);
 	XMStoreFloat4x4(&m_View.projection, XMMatrixTranspose(ViewProj));
 
@@ -916,19 +919,22 @@ void D3D12ExecuteIndirect::OnDestroy()
 
 void D3D12ExecuteIndirect::OnKeyDown(UINT8 key)
 {
+	const float delta = 0.05f;
 	switch (key)
 	{
 		case VK_UP:
-			m_Position.z -= 0.02f;
+			m_Position.z -= delta * cos(m_Yaw);
+			m_Position.x -= delta * -sin(m_Yaw);
 			break;
 		case VK_DOWN:
-			m_Position.z += 0.02f;
+			m_Position.z += delta * cos(m_Yaw);
+			m_Position.x += delta * -sin(m_Yaw);
 			break;
 		case VK_LEFT:
-			m_Position.x += 0.02f;
+			m_Yaw += 0.02f;
 			break;
 		case VK_RIGHT:
-			m_Position.x -= 0.02f;
+			m_Yaw -= 0.02f;
 			break;
 		case 'W':
 			m_Position.y -= 0.02f;
