@@ -73,7 +73,7 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 
 	IndirectCommand cmd = inputCommands[index];
 
-	if (clp.z > 0.999)
+	if (clp.z > 0.999f )
 	{
 		cmd.drawArguments.y = 6;
 		cmd.index |= 0x80000000;
