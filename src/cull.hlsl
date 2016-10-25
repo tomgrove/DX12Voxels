@@ -71,8 +71,16 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 	// Don't attempt to access commands that don't exist if more threads are allocated
 	// than commands
 
+	IndirectCommand cmd = inputCommands[index];
+
+	if (clp.z > 0.999)
+	{
+		cmd.drawArguments.y = 6;
+		cmd.index |= 0x80000000;
+	}
+
 	if (index < commandCounts[0].count )
 	{
-		outputCommands.Append(inputCommands[index]);
+		outputCommands.Append(cmd);
 	}	
 }

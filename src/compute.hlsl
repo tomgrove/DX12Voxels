@@ -26,9 +26,6 @@ struct IndirectCommand
 
 cbuffer RootConstants : register(b0)
 {
-	float xOffset;		// Half the width of the triangles.
-	float zOffset;		// The z offset for the triangle vertices.
-	float cullOffset;	// The culling plane offset in homogenous space.
 	float commandCount;	// The number of commands to be processed.
 };
 

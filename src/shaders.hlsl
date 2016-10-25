@@ -20,7 +20,7 @@ cbuffer ViewConstantBuffer : register(b1)
 {
 	float4x4 projection;
 	float4	 tileoffset;
-	uint     index;
+	uint     indexAndFlag;
 };
 
 Texture2D g_texture : register(t0);
@@ -38,8 +38,12 @@ struct PSInput
 
 PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 {
-	float scale = cVoxelHalfWidth;
 	PSInput result;
+
+	uint index = indexAndFlag & 0x7fffffff;
+	uint flag =  indexAndFlag & 0x80000000;
+
+	float scale = cVoxelHalfWidth;
 
 	uint voxid = pid / 6;
 	uint voxmatidx = index*cBrickWidth*cBrickHeight*cBrickDepth + voxid;
@@ -114,11 +118,24 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 	voxel.x = ( voxid % (cBrickWidth*cBrickHeight)) % cBrickWidth;
 	voxel.w = 0;
 
+	
+
 	voxel *= (scale*2.0);
+
+	voxel.xyz += float3(scale, scale, scale);
 
 	float4 vertex;
 
-	vertex = (verts[vid + id * 4] + brick + voxel + tileoffset);// *(cbv[voxmatidx].color != 0 ? 1 : 0);
+	if (flag)
+	{
+		vertex = verts[vid + id * 4] * float4(cBrickWidth, cBrickHeight, cBrickDepth, 1) +
+			float4(cBrickWidth, cBrickHeight, cBrickDepth, 0)  * scale
+									   + brick + tileoffset;
+	}
+	else
+	{
+		vertex = verts[vid + id * 4] + brick + voxel + tileoffset;
+	}
 
 	result.position = mul( vertex, projection);
 

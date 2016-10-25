@@ -36,9 +36,9 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
 	ZeroMemory(m_fenceValues, sizeof(m_fenceValues));
 	m_constantBufferData.resize(VoxelCount);
 
-	m_csRootConstants.xOffset = VoxelHalfWidth;
-	m_csRootConstants.zOffset = TriangleDepth;
-	m_csRootConstants.cullOffset = CullingCutoff;
+	//m_csRootConstants.xOffset = VoxelHalfWidth;
+	//m_csRootConstants.zOffset = TriangleDepth;
+	//m_csRootConstants.cullOffset = CullingCutoff;
 	m_csRootConstants.commandCount = BrickCount;
 
 	m_viewport.Width = static_cast<float>(width);
@@ -931,16 +931,16 @@ void D3D12ExecuteIndirect::OnKeyDown(UINT8 key)
 			m_Position.x += delta * -sin(m_Yaw);
 			break;
 		case VK_LEFT:
-			m_Yaw += 0.02f;
+			m_Yaw += 0.04f;
 			break;
 		case VK_RIGHT:
-			m_Yaw -= 0.02f;
+			m_Yaw -= 0.04f;
 			break;
 		case 'W':
-			m_Position.y -= 0.02f;
+			m_Position.y -= delta;
 			break;
 		case 'S':
-			m_Position.y += 0.02f;
+			m_Position.y += delta;
 			break;
 		case VK_SPACE:
 			m_VoxOp = Mine;
@@ -983,8 +983,8 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 			SrvUavTable,
 			CD3DX12_GPU_DESCRIPTOR_HANDLE(cbvSrvUavHandle, CbvSrvOffset + NumTexture + frameDescriptorOffset, m_cbvSrvUavDescriptorSize));
 
-		m_csRootConstants.cullOffset = m_Position.z;
-		m_computeCommandList->SetComputeRoot32BitConstants(RootConstants, 4, reinterpret_cast<void*>(&m_csRootConstants), 0);
+		//m_csRootConstants.cullOffset = m_Position.z;
+		m_computeCommandList->SetComputeRoot32BitConstants(RootConstants, ComputeInUInt32s, reinterpret_cast<void*>(&m_csRootConstants), 0);
 
 		// Reset the UAV counter for this frame.
 		m_computeCommandList->CopyBufferRegion(m_processedCommandBuffers[m_bufIndex].Get(), CommandBufferCounterOffset, m_processedCommandBufferCounterReset.Get(), 0, sizeof(UINT));

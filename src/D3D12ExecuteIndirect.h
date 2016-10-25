@@ -79,11 +79,10 @@ private:
 	// Root constants for the compute shader.
 	struct CSRootConstants
 	{
-		float xOffset;
-		float zOffset;
-		float cullOffset;
 		float commandCount;
 	};
+
+	static const UINT32 ComputeInUInt32s = sizeof(CSRootConstants) / sizeof(UINT32);
 
 #pragma pack(push, 4)
 	struct CSCullConstants
