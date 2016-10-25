@@ -38,7 +38,7 @@ struct PSInput
 
 PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 {
-	float scale = 0.05;
+	float scale = cVoxelHalfWidth;
 	PSInput result;
 
 	uint voxid = pid / 6;
@@ -123,7 +123,7 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 	result.position = mul( vertex, projection);
 
 	float intensity = saturate((16.0f - result.position.z) / 2.0f);
-	float3 light = saturate(dot(normalize( float3(1,1,-2) ), norms[id])) * float3(1,1,1);
+	float3 light = saturate(dot(normalize( float3(1,1,-2) ), norms[id]) + 0.1f) * float3(1,1,1);
 
 	float3 blended = (1.0 - intensity) * float3(0.9, 0.9, 1) + intensity * light;
 	result.color = float4(blended, 1.0f);

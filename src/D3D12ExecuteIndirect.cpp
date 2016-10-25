@@ -16,7 +16,7 @@
 
 const UINT D3D12ExecuteIndirect::CommandSizePerFrame = BrickCount * sizeof(IndirectCommand);
 const UINT D3D12ExecuteIndirect::CommandBufferCounterOffset = AlignForUavCounter(D3D12ExecuteIndirect::CommandSizePerFrame);
-const float D3D12ExecuteIndirect::VoxelHalfWidth = 0.05f;
+const float D3D12ExecuteIndirect::VoxelHalfWidth = cVoxelHalfWidth;
 const float D3D12ExecuteIndirect::TriangleDepth = 1.0f;
 const float D3D12ExecuteIndirect::CullingCutoff = 0.5f;
 
@@ -518,13 +518,13 @@ void D3D12ExecuteIndirect::LoadAssets()
 									int ty = 4 * 16; // rand() % 16;
 									tx += 6 * 256;
 									ty += 3 * (256 * 16);
-									m_constantBufferData[n].color = tx + ty; //XMFLOAT2((float)tx / 16.0f, (float)ty / 16.0f);// , GetRandomFloat(0.0f, 1.0f), 1.0f);
+									m_constantBufferData[n].color = rand() % 65536; // tx + ty; //XMFLOAT2((float)tx / 16.0f, (float)ty / 16.0f);// , GetRandomFloat(0.0f, 1.0f), 1.0f);
 								}
 								else if (y < (surface- 2))
 								{
 									int tx = 2;  //rand() % 16;
 									int ty = 0; // rand() % 16;
-									m_constantBufferData[n].color = tx + ty * 16; // XMFLOAT2((float)tx / 16.0f, (float)ty / 16.0f); // , GetRandomFloat(0.0f, 1.0f), 1.0f);
+									m_constantBufferData[n].color = rand() % 65536; // tx + ty * 16; // XMFLOAT2((float)tx / 16.0f, (float)ty / 16.0f); // , GetRandomFloat(0.0f, 1.0f), 1.0f);
 								} 
 								else
 								{
@@ -829,7 +829,7 @@ XMFLOAT3 D3D12ExecuteIndirect::GetVoxelPositionFromIndex(UINT index) const
 // Update frame-based values.
 void D3D12ExecuteIndirect::OnUpdate()
 {
-	auto Proj = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_aspectRatio, 0.01f, 20.0f);
+	auto Proj = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_aspectRatio, 0.01f, cDepth * 0.1f);
 	auto Rot = XMMatrixRotationRollPitchYaw(0, m_Yaw, 0);
 	auto Trans = XMMatrixTranslation(m_Position.x, m_Position.y, m_Position.z);
 	auto ViewPos = XMMatrixMultiply(Trans, Rot);
@@ -1017,7 +1017,6 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 			CD3DX12_GPU_DESCRIPTOR_HANDLE(cbvSrvUavHandle, CullCommandsOffset + NumTexture + uavFrameDescriptorOffset, m_cbvSrvUavDescriptorSize));
 
 		memcpy( &m_cullConstants.projection, m_View.projection.m, sizeof( float[4][4] ) );
-		m_cullConstants.commandCount = BrickCount;
 		m_cullCommandList->SetComputeRoot32BitConstants(CullRootConstants, CullConstantsInU32, reinterpret_cast<void*>(&m_cullConstants), 0);
 
 		// Reset the UAV counter for this frame.

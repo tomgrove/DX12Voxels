@@ -89,7 +89,6 @@ private:
 	struct CSCullConstants
 	{
 		XMFLOAT4X4 projection;
-		float	   commandCount;
 	};
 #pragma pack(pop)
 
@@ -183,7 +182,7 @@ private:
 
 
 	XMFLOAT3 m_Position;
-	float	 m_Yaw;
+	float    m_Yaw;
 	bool     m_RunCompute;
 	VoxOp	 m_VoxOp;
 
