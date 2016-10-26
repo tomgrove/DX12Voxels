@@ -110,7 +110,10 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</DeploymentContent>
     </CustomBuild>
+    <ClInclude Include="Definitions.h" />
+    <ClInclude Include="Shared.h" />
     <ClInclude Include="stb_image.h" />
+    <ClInclude Include="VoxelTile.h" />
     <ClInclude Include="Win32Application.h" />
     <ClInclude Include="D3D12ExecuteIndirect.h" />
     <ClInclude Include="d3dx12.h" />
@@ -119,6 +122,8 @@
     <ClInclude Include="stdafx.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Shared.cpp" />
+    <ClCompile Include="VoxelTile.cpp" />
     <ClCompile Include="Win32Application.cpp" />
     <ClCompile Include="D3D12ExecuteIndirect.cpp" />
     <ClCompile Include="DXSample.cpp" />

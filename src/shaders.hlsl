@@ -63,7 +63,7 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 		{1,0,0}
 	};
 
-	float2 uvs[4] = { {0,0}, {1,0}, {0,1}, {1,1} };
+	float2 uvs[4] = { {0,0}, {0.98,0}, {0,0.98}, {0.98,0.98} };
 
 	float4 verts[4 * 6] = {
 	
@@ -158,7 +158,7 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 
 	float2 tex = float2(texid % 16, texid / 16) / 16.0f;
 
-	result.uv.xy = uvs[vid] / 17.0f + tex;
+	result.uv.xy = uvs[vid] / 16.0f + tex;
 
 	return result;
 }

@@ -11,22 +11,10 @@
 
 #pragma once
 
-#include "DXSample.h"
-#include "defines.h"
+#include "Definitions.h"
 
 using namespace DirectX;
-
-// Note that while ComPtr is used to manage the lifetime of resources on the CPU,
-// it has no understanding of the lifetime of resources on the GPU. Apps must account
-// for the GPU lifetime of resources to avoid destroying objects that may still be
-// referenced by the GPU.
-// An example of this can be found in the class method: OnDestroy().
 using Microsoft::WRL::ComPtr;
-
-class VoxelTile
-{
-
-};
 
 class D3D12ExecuteIndirect : public DXSample
 {
@@ -40,25 +28,10 @@ public:
 	virtual void OnKeyDown(UINT8 key);
 
 private:
-	static const UINT FrameCount = 2;
-	static const UINT Depth		= cDepth;
-	static const UINT Height	= cHeight;
-	static const UINT Width		= cWidth;
-	static const UINT BrickWidth =  cBrickWidth;
-	static const UINT BrickHeight = cBrickHeight;
-	static const UINT BrickDepth =  cBrickDepth;
-	static const UINT VoxelsPerBrick = BrickWidth*BrickDepth *BrickHeight;
-	static const UINT TileX = 1;
-	static const UINT TileZ = 1;
-	static const UINT BrickCount = cDepthInBricks*cHeightInBricks*cWidthInBricks;
-	static const UINT VoxelCount = BrickCount * VoxelsPerBrick;
-	static const UINT BrickResourceCount = BrickCount * FrameCount;
 	static const UINT CommandSizePerFrame;			     // The size of the indirect commands to draw all of the triangles in a single frame.
 	static const UINT CommandBufferCounterOffset;		// The offset of the UAV counter in the processed command buffer.
 	static const UINT ComputeThreadBlockSize = 128;		// Should match the value in compute.hlsl.
 	static const float VoxelHalfWidth;					// The x and y offsets used by the triangle vertices.
-	static const float TriangleDepth;					// The z offset used by the triangle vertices.
-	static const float CullingCutoff;					// The +/- x offset of the clipping planes in homogenous space [-1,1].
 	static const UINT NumTexture = 1;
 
 	struct ViewConstantBuffer

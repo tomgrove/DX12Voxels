@@ -11,14 +11,12 @@
 
 #include "stdafx.h"
 #include "D3D12ExecuteIndirect.h"
-#define STB_IMAGE_IMPLEMENTATION
+//#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 const UINT D3D12ExecuteIndirect::CommandSizePerFrame = BrickCount * sizeof(IndirectCommand);
 const UINT D3D12ExecuteIndirect::CommandBufferCounterOffset = AlignForUavCounter(D3D12ExecuteIndirect::CommandSizePerFrame);
 const float D3D12ExecuteIndirect::VoxelHalfWidth = cVoxelHalfWidth;
-const float D3D12ExecuteIndirect::TriangleDepth = 1.0f;
-const float D3D12ExecuteIndirect::CullingCutoff = 0.5f;
 
 D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring name) :
 	DXSample(width, height, name),
@@ -36,9 +34,6 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
 	ZeroMemory(m_fenceValues, sizeof(m_fenceValues));
 	m_constantBufferData.resize(VoxelCount);
 
-	//m_csRootConstants.xOffset = VoxelHalfWidth;
-	//m_csRootConstants.zOffset = TriangleDepth;
-	//m_csRootConstants.cullOffset = CullingCutoff;
 	m_csRootConstants.commandCount = BrickCount;
 
 	m_viewport.Width = static_cast<float>(width);
@@ -47,11 +42,6 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
 
 	m_scissorRect.right = static_cast<LONG>(width);
 	m_scissorRect.bottom = static_cast<LONG>(height);
-
-	float center = width / 2.0f;
-	m_cullingScissorRect.left = static_cast<LONG>(center - (center * CullingCutoff));
-	m_cullingScissorRect.right = static_cast<LONG>(center + (center * CullingCutoff));
-	m_cullingScissorRect.bottom = static_cast<LONG>(height);
 
 	m_Position = XMFLOAT3(-0.1f * cWidth/2 , -0.1f * cHeight/2, -0.1f * cDepth/2);
 	m_VoxOp = None;
@@ -872,38 +862,43 @@ void D3D12ExecuteIndirect::OnRender()
 	// Record all the commands we need to render the scene into the command list.
 	PopulateCommandLists();
 
-	// Execute the compute work.
-	
-	if( m_RunCompute )
 	{
-		PIXBeginEvent(m_commandQueue.Get(), 0, L"Cull hidden voxels");
-		ID3D12CommandList* ppCommandLists[] = { m_computeCommandList.Get() };
-		m_computeCommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+		UINT computeCmds = 0;
+		ID3D12CommandList* ppCommandLists[2];
+
+		// Execute the compute work.
+
+		
+		if (m_RunCompute)
+		{
+			ppCommandLists[computeCmds] = m_computeCommandList.Get();
+			computeCmds++;
+		}
+
+		ppCommandLists[computeCmds] = m_cullCommandList.Get();
+		computeCmds++;
+
+		PIXBeginEvent(m_commandQueue.Get(), 0, L"Compute");
+		m_computeCommandQueue->ExecuteCommandLists(computeCmds, ppCommandLists);
+		m_computeCommandQueue->Signal(m_computeFence.Get(), m_fenceValues[m_frameIndex]);
+
+		// Execute the rendering work only when the compute work is complete.
+		m_commandQueue->Wait(m_computeFence.Get(), m_fenceValues[m_frameIndex]);
 		PIXEndEvent(m_commandQueue.Get());
 	}
 
 	{
-		PIXBeginEvent(m_commandQueue.Get(), 0, L"Frustum Cull hidden voxels");
-		ID3D12CommandList* ppCommandLists[] = { m_cullCommandList.Get() };
-		m_computeCommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+		PIXBeginEvent(m_commandQueue.Get(), 0, L"Render");
+
+		// Execute the rendering work.
+		ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
+		m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+
 		PIXEndEvent(m_commandQueue.Get());
 	}
-	
-	m_computeCommandQueue->Signal(m_computeFence.Get(), m_fenceValues[m_frameIndex]);
-
-	// Execute the rendering work only when the compute work is complete.
-	m_commandQueue->Wait(m_computeFence.Get(), m_fenceValues[m_frameIndex]);
-
-	PIXBeginEvent(m_commandQueue.Get(), 0, L"Render");
-
-	// Execute the rendering work.
-	ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-
-	PIXEndEvent(m_commandQueue.Get());
 
 	// Present the frame.
-	ThrowIfFailed(m_swapChain->Present(1, 0));
+	ThrowIfFailed(m_swapChain->Present(0, 0));
 
 	MoveToNextFrame();
 }
