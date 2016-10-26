@@ -15,28 +15,39 @@ public:
 	SharedResources(ID3D12Device* device) :
 		mVoxels(),
 		mTexture(),
+		mCommands(),
+		mCounterReset(),
 		mDevice(device),
-		mMappedVoxels(nullptr),
 		mTextureData(),
-		mTextureUploadHeap()
+		mTextureUpload(),
+		mCommandsUpload(),
+		mMappedVoxels(nullptr)
 	{}
 
 	void Init(ID3D12GraphicsCommandList* commandList, std::string& filename);
 
 	ComPtr<ID3D12Resource> mVoxels;
 	ComPtr<ID3D12Resource> mTexture;
-private:
+	ComPtr<ID3D12Resource> mCommands;
+	ComPtr<ID3D12Resource> mCounterReset;
 
+private:
 
 	template<typename T>
 	using deleted_unique_ptr = std::unique_ptr<T, std::function<void(T*)>>;
 
-	ID3D12Device*				mDevice;
-	std::vector<Voxel>			mVoxelData;
-	Voxel*						mMappedVoxels;
-	deleted_unique_ptr<stbi_uc> mTextureData;
-	ComPtr<ID3D12Resource>		mTextureUploadHeap;
+	ID3D12Device*					mDevice;
 
-	void					CreateTexture(ID3D12GraphicsCommandList* commandList, std::string& filename);
-	ComPtr<ID3D12Resource>  CreateVoxels();
+	std::vector<Voxel>				mVoxelData;
+	std::vector<DrawVoxelCommand>	mCommandsData;
+	deleted_unique_ptr<stbi_uc>		mTextureData;
+
+	ComPtr<ID3D12Resource>			mTextureUpload;
+	ComPtr<ID3D12Resource>			mCommandsUpload;
+
+	Voxel*							mMappedVoxels;
+
+	void							CreateCommands(ID3D12GraphicsCommandList* commandList);
+	void							CreateTexture(ID3D12GraphicsCommandList* commandList, std::string& filename);
+	ComPtr<ID3D12Resource>			CreateVoxels();
 };

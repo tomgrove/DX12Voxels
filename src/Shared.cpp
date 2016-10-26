@@ -3,6 +3,51 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+void SharedResources::CreateCommands(ID3D12GraphicsCommandList* commandList)
+{
+	mCommandsData.resize(BrickResourceCount);
+	const UINT commandBufferSize = CommandSizePerFrame;
+
+	D3D12_RESOURCE_DESC commandBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(commandBufferSize);
+	ThrowIfFailed(mDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&commandBufferDesc,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		nullptr,
+		IID_PPV_ARGS(&mCommands)));
+
+	ThrowIfFailed(mDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+		D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(commandBufferSize),
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&mCommandsUpload)));
+
+	NAME_D3D12_OBJECT(mCommands);
+
+
+	for (UINT i = 0; i < BrickCount; i++)
+	{
+		mCommandsData[i].Data = i;
+		mCommandsData[i].DrawArguments.VertexCountPerInstance = 4;
+		mCommandsData[i].DrawArguments.InstanceCount = 6 * VoxelsPerBrick;
+		mCommandsData[i].DrawArguments.StartVertexLocation = 0;
+		mCommandsData[i].DrawArguments.StartInstanceLocation = 0;
+	}
+
+	// Copy data to the intermediate upload heap and then schedule a copy
+	// from the upload heap to the command buffer.
+	D3D12_SUBRESOURCE_DATA commandData = {};
+	commandData.pData = reinterpret_cast<UINT8*>(&mCommandsData[0]);
+	commandData.RowPitch = commandBufferSize;
+	commandData.SlicePitch = commandData.RowPitch;
+
+	UpdateSubresources<1>(commandList, mCommands.Get(), mCommandsUpload.Get(), 0, 0, 1, &commandData);
+	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition( mCommands.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
+}
+
 ComPtr<ID3D12Resource>  SharedResources::CreateVoxels()
 {
 	ComPtr<ID3D12Resource> Buffer;
@@ -115,7 +160,7 @@ void SharedResources::CreateTexture(ID3D12GraphicsCommandList* commandList, std:
 		&CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize),
 		D3D12_RESOURCE_STATE_GENERIC_READ,
 		nullptr,
-		IID_PPV_ARGS(&mTextureUploadHeap)));
+		IID_PPV_ARGS(&mTextureUpload)));
 
 	// Copy data to the intermediate upload heap and then schedule a copy 
 	// from the upload heap to the Texture2D.
@@ -125,7 +170,7 @@ void SharedResources::CreateTexture(ID3D12GraphicsCommandList* commandList, std:
 	textureData.RowPitch = w * n;
 	textureData.SlicePitch = textureData.RowPitch * n;
 
-	UpdateSubresources( commandList, mTexture.Get(), mTextureUploadHeap.Get(), 0, 0, 1, &textureData);
+	UpdateSubresources( commandList, mTexture.Get(), mTextureUpload.Get(), 0, 0, 1, &textureData);
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mTexture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 }
 
