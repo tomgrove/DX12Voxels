@@ -3,6 +3,23 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+void SharedResources::CreateCounterReset()
+{
+	ThrowIfFailed(mDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+		D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(sizeof(UINT)),
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&mCounterReset)));
+
+	UINT8* pMappedCounterReset = nullptr;
+	CD3DX12_RANGE readRange(0, 0);
+	ThrowIfFailed(mCounterReset->Map(0, &readRange, reinterpret_cast<void**>(&pMappedCounterReset)));
+	ZeroMemory(pMappedCounterReset, sizeof(UINT));
+	mCounterReset->Unmap(0, nullptr);
+}
+
 void SharedResources::CreateCommands(ID3D12GraphicsCommandList* commandList)
 {
 	mCommandsData.resize(BrickResourceCount);
@@ -26,7 +43,6 @@ void SharedResources::CreateCommands(ID3D12GraphicsCommandList* commandList)
 		IID_PPV_ARGS(&mCommandsUpload)));
 
 	NAME_D3D12_OBJECT(mCommands);
-
 
 	for (UINT i = 0; i < BrickCount; i++)
 	{
@@ -115,7 +131,7 @@ ComPtr<ID3D12Resource>  SharedResources::CreateVoxels()
 	}
 
 	{
-		CD3DX12_RANGE readRange(0, 0);		// We do not intend to read from this resource on the CPU.
+		CD3DX12_RANGE readRange(0, 0);
 		ThrowIfFailed(Buffer->Map(0, &readRange, reinterpret_cast<void**>(&mMappedVoxels)));
 		const size_t size = VoxelCount * sizeof(Voxel);
 		memcpy(mMappedVoxels, &mVoxelData[0], size);
@@ -179,4 +195,6 @@ void SharedResources::Init(ID3D12GraphicsCommandList* commandList, std::string& 
 {
 	mVoxels = CreateVoxels();
 	CreateTexture( commandList, filename );
+	CreateCommands( commandList );
+	CreateCounterReset();
 }

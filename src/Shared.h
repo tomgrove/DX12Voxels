@@ -47,6 +47,7 @@ private:
 
 	Voxel*							mMappedVoxels;
 
+	void							CreateCounterReset();
 	void							CreateCommands(ID3D12GraphicsCommandList* commandList);
 	void							CreateTexture(ID3D12GraphicsCommandList* commandList, std::string& filename);
 	ComPtr<ID3D12Resource>			CreateVoxels();
