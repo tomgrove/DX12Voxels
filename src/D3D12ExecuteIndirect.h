@@ -30,9 +30,7 @@ public:
 private:
 	static const UINT CommandSizePerFrame;			     // The size of the indirect commands to draw all of the triangles in a single frame.
 	static const UINT CommandBufferCounterOffset;		// The offset of the UAV counter in the processed command buffer.
-	static const UINT ComputeThreadBlockSize = 128;		// Should match the value in compute.hlsl.
 	static const float VoxelHalfWidth;					// The x and y offsets used by the triangle vertices.
-	static const UINT NumTexture = 1;
 
 	struct ViewConstantBuffer
 	{
@@ -56,7 +54,7 @@ private:
 	};
 
 	static const UINT32 ComputeInUInt32s = sizeof(CSRootConstants) / sizeof(UINT32);
-
+	/*
 #pragma pack(push, 4)
 	struct CSCullConstants
 	{
@@ -65,7 +63,7 @@ private:
 #pragma pack(pop)
 
 	const UINT CullConstantsInU32 = sizeof(CSCullConstants) / sizeof(UINT);
-
+	*/
 	// Data structure to match the command signature used for ExecuteIndirect.
 #pragma pack(push, 4)
 	struct IndirectCommand
@@ -90,7 +88,7 @@ private:
 		Texture,
 		GraphicsRootParametersCount
 	};
-
+/*
 	// Compute root signature parameter offsets.
 	enum ComputeRootParameters
 	{
@@ -106,7 +104,7 @@ private:
 		CullRootConstants,			// Root constants that give the shader information about the triangle vertices and culling planes.
 		CullRootParametersCount
 	};
-
+*/
 	// CBV/SRV/UAV desciptor heap offsets.
 	enum HeapOffsets
 	{

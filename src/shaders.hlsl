@@ -54,6 +54,14 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 		return result;
 	}
 
+	float2 uvs[4] = { { 0,0 },{ 0.98,0 },{ 0,0.98 },{ 0.98,0.98 } };
+
+	uint texid = (cbv[voxmatidx].color % 256);
+
+	float2 tex = float2(texid % 16, float(uint(texid / 16))) / 16.0f;
+
+	result.uv.xy = uvs[vid] / 16.0f + tex;
+
 	float3 norms[6] = {
 		{ 0,0,-1},
 		{0,0,1},
@@ -62,8 +70,6 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 		{-1,0,0},
 		{1,0,0}
 	};
-
-	float2 uvs[4] = { {0,0}, {0.98,0}, {0,0.98}, {0.98,0.98} };
 
 	float4 verts[4 * 6] = {
 	
@@ -140,30 +146,31 @@ PSInput VSMain(uint pid : SV_InstanceID, uint vid : SV_VertexID )
 	result.position = mul( vertex, projection);
 
 	float intensity = saturate((16.0f - result.position.z) / 2.0f);
-	float3 light = saturate(dot(normalize( float3(1,1,-2) ), norms[id])) * float3(1,1,1) + float3(0.7, 0.7, 1.0) * 0.5;
+	float3 light = saturate(dot(normalize( float3(1,1,-2) ), norms[id])) * float3(0.5f,0.5f,0.5f) + float3(0.7, 0.7, 1.0) * 0.5;
 
 	float3 blended = (1.0 - intensity) * float3(0.9, 0.9, 1) + intensity * light;
 	result.color = float4(blended, 1.0f);
 
-	uint texid;
+	//uint texid;
 
-	if (id == 2 || id == 3)
+	/*if (id == 2 || id == 3)
 	{
-		texid = (cbv[voxmatidx].color & 0x0000ff00) >> 8;
+		texid = (cbv[voxmatidx].color / 256) % 256;
 	}
 	else
 	{
-		texid = (cbv[voxmatidx].color & 0x000000ff);
+		texid = (cbv[voxmatidx].color % 256 );
 	}
 
-	float2 tex = float2(texid % 16, texid / 16) / 16.0f;
+	float2 tex = float2(texid % 16, float(uint( texid / 16)) ) / 16.0f;
 
-	result.uv.xy = uvs[vid] / 16.0f + tex;
+	result.uv.xy = uvs[vid] / 16.0f +tex;
+	*/
 
 	return result;
 }
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-	return g_texture.Sample( g_sampler, input.uv.xy ) * input.color;
+	return g_texture.Sample( g_sampler, input.uv.xy ) *  input.color;
 }

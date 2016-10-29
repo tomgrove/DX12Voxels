@@ -11,7 +11,6 @@
 
 #include "stdafx.h"
 #include "D3D12ExecuteIndirect.h"
-//#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 const UINT D3D12ExecuteIndirect::CommandSizePerFrame = BrickCount * sizeof(IndirectCommand);
@@ -181,6 +180,10 @@ void D3D12ExecuteIndirect::LoadPipeline()
 			ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_COMPUTE, IID_PPV_ARGS(&m_cullCommandAllocators[n])));
 		}
 	}
+}
+
+static float MD(XMVECTOR pt, XMVECTOR tl, XMVECTOR br, float hs[4] )
+{
 }
 
 // Load the sample assets.
@@ -686,7 +689,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 				srvDesc.Buffer.NumElements = 1;
 				srvDesc.Buffer.StructureByteStride = sizeof(UINT);
 				srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-				srvDesc.Buffer.FirstElement = sizeof(IndirectCommand) / sizeof(UINT) * BrickCount;
+				srvDesc.Buffer.FirstElement = CommandBufferCounterOffset / sizeof(UINT); 
 
 				m_device->CreateShaderResourceView(m_processedCommandBuffers[frame].Get(), &srvDesc, processedCommandsCountHandle);
 				processedCommandsCountHandle.Offset(CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize);
@@ -1053,9 +1056,9 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 			barriers[barrierIndex] = CD3DX12_RESOURCE_BARRIER::Transition(
 				m_processedCommandBuffers[m_bufIndex].Get(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-				D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+				D3D12_RESOURCE_STATE_GENERIC_READ);
 			barrierIndex++;
-		}
+		}   
 
 		barriers[barrierIndex] = CD3DX12_RESOURCE_BARRIER::Transition(
 			m_cullCommandBuffers[m_frameIndex].Get(),
@@ -1119,7 +1122,7 @@ void D3D12ExecuteIndirect::PopulateCommandLists()
 
 		if (m_RunCompute)
 		{
-			barriers[barrierIndex].Transition.StateBefore = D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
+			barriers[barrierIndex].Transition.StateBefore = D3D12_RESOURCE_STATE_GENERIC_READ; // D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
 			barriers[barrierIndex].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
 			barrierIndex++;
 		}

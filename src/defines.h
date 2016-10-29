@@ -1,7 +1,7 @@
 
-#define cDepth 512
+#define cDepth  256
 #define cHeight 64
-#define cWidth 512
+#define cWidth  256
 
 #define cBrickWidth 4
 #define cBrickHeight 4

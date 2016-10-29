@@ -23,7 +23,7 @@ void SharedResources::CreateCounterReset()
 void SharedResources::CreateCommands(ID3D12GraphicsCommandList* commandList)
 {
 	mCommandsData.resize(BrickResourceCount);
-	const UINT commandBufferSize = CommandSizePerFrame;
+	const UINT commandBufferSize = CommandSizePerTile;
 
 	D3D12_RESOURCE_DESC commandBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(commandBufferSize);
 	ThrowIfFailed(mDevice->CreateCommittedResource(
