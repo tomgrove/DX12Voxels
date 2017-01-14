@@ -3,3 +3,19 @@
 ################################################################################
 
 /src/.vs/D3D12ExecuteIndirect/v14
+/src/bin/x64
+/src/ipch/D3D12EXECUTEINDIRECT-141f2000/D3D12EXECUTEINDIRECT-56dd5fde.ipch
+/src/ipch/D3D12EXECUTEINDIRECT-539280b9/D3D12EXECUTEINDIRECT-82b400a4.ipch
+/src/ipch/D3D12EXECUTEINDIRECT-539280b9/D3D12EXECUTEINDIRECT-56dd5fde.ipch
+*.psess
+/src/D3D12ExecuteIndirect161016.vspx
+/src/D3D12ExecuteIndirect.VC.VC.opendb
+/src/D3D12ExecuteIndirect.VC.db
+*.tlog
+*.log
+*.obj
+/src/obj/x64/Debug/vc140.idb
+/src/obj/x64/Debug/vc140.pdb
+/src/obj/x64/Debug/D3D12ExecuteIndirect.pch
+/src/obj/x64/Release/D3D12ExecuteIndirect.pch
+/src/obj/x64/Release/vc140.pdb

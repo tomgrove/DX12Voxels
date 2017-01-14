@@ -55,7 +55,6 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 	brick.xyz *= brickdims;
 	brick.xyz += brickdims / 2.0;
  
-
 	float4 p = mul(brick, projection);
 	float3 clp = p.xyz / (p.w + 0.000001f);
 	float3 bounds = brickdims * 2.4f / 2.0f;
@@ -68,12 +67,9 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 		return;
 	}
 
-	// Don't attempt to access commands that don't exist if more threads are allocated
-	// than commands
-
 	IndirectCommand cmd = inputCommands[index];
 
-	if (clp.z > 0.999f )
+	if (clp.z > 0.999 )
 	{
 		cmd.drawArguments.y = 6;
 		cmd.index |= 0x80000000;
